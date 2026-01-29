@@ -23,13 +23,30 @@ class PgFigure(pg.GraphicsLayoutWidget):
     def plt(self) -> None | pg.PlotItem:
         return self._plt
 
-    def image(self, arr: np.ndarray, xywh: Iterable | None = None, zvalue: int = -100, colorbar: bool = True):
+    def image(
+        self,
+        arr: np.ndarray,
+        xywh: list | None = None,
+        addHalfPixelBorder: bool = True,
+        zvalue: int = -100,
+        colorbar: bool = True
+    ):
         self._im = pg.ImageItem(arr)
         if self._plt is None:
             self._plt = self.addPlot() # pyright: ignore
 
-        if xywh is not None:
-            self._im.setRect(QRectF(*xywh))
+        # Default to 0,0 bottom left, width and height in pixels
+        if xywh is None:
+            xywh = [0, 0, arr.shape[1], arr.shape[0]]
+
+        # Centres each pixel on the grid coordinates (instead of corners)
+        if addHalfPixelBorder:
+            pixelWidth = xywh[2] / arr.shape[1]
+            pixelHeight = xywh[3] / arr.shape[0]
+            xywh[0] -= 0.5 * pixelWidth
+            xywh[1] -= 0.5 * pixelHeight
+
+        self._im.setRect(QRectF(*xywh))
         self._im.setZValue(zvalue)
 
         cm2use = pg.colormap.getFromMatplotlib("viridis")
@@ -50,5 +67,15 @@ if __name__ == "__main__":
     f = PgFigure()
     f.image(x)
     f.show()
+
+    if length <= 7:
+        f2 = PgFigure()
+        y = np.arange(length*length)
+        y = y % 2
+        y = y.reshape((length, length))
+        f2.image(y)
+        f2.show()
+
     if os.name == "nt":
         forceShow()
+
