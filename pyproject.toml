@@ -8,6 +8,8 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
+    "pyqtgraph >= 0.14.0",
+    "matplotlib >= 3.10.8"
 ]
 
 
