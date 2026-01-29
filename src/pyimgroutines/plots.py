@@ -1,7 +1,7 @@
 from typing import Iterable
 import pyqtgraph as pg
 import numpy as np
-from PySide6.QtCore import Qt, QRectF
+from PySide6.QtCore import QPointF, Qt, QRectF
 import os
 
 def forceShow():
@@ -56,6 +56,16 @@ class PgFigure(pg.GraphicsLayoutWidget):
             self._plt.addColorBar(self._im, colorMap=cm2use)
 
         self._plt.addItem(self._im)
+
+        # TODO: maybe make a custom signal/slot?
+        self.scene().sigMouseMoved.connect(self.mouseMoved) # pyright: ignore
+
+    def mouseMoved(self, evt: QPointF):
+        if self._plt.sceneBoundingRect().contains(evt): # pyright: ignore
+            coords = self._plt.vb.mapSceneToView(evt) # pyright: ignore
+            print(f"Mouse position: {coords.x()}, {coords.y()}")
+
+
 
 if __name__ == "__main__":
     import sys
