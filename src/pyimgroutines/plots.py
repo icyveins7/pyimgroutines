@@ -2,6 +2,11 @@ from typing import Iterable
 import pyqtgraph as pg
 import numpy as np
 from PySide6.QtCore import Qt, QRectF
+import os
+
+def forceShow():
+    app = pg.mkQApp()
+    app.exec()
 
 class PgFigure(pg.GraphicsLayoutWidget):
     def __init__(self, *args, **kwargs):
@@ -36,7 +41,14 @@ class PgFigure(pg.GraphicsLayoutWidget):
         self._plt.addItem(self._im)
 
 if __name__ == "__main__":
-    x = np.arange(9).reshape((3,3))
+    import sys
+    if len(sys.argv) > 1:
+        length = int(sys.argv[1])
+    else:
+        length = 3
+    x = np.arange(length*length).reshape((length, length))
     f = PgFigure()
     f.image(x)
     f.show()
+    if os.name == "nt":
+        forceShow()
