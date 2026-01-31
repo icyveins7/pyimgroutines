@@ -18,11 +18,17 @@ def forceShow():
     app.exec()
 
 class PgFigure(pg.GraphicsLayoutWidget):
+    CURSOR_SHOW_NONE = 0
+    CURSOR_SHOW_POS = 1
+    CURSOR_SHOW_VALUE = 2
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self._im = None
         self._plt = None
+        self._cursorMode = self.CURSOR_SHOW_POS
+        self._cursorPos = np.array([0, 0], dtype=np.float64)
 
     @property
     def im(self) -> None | pg.ImageItem:
@@ -69,18 +75,39 @@ class PgFigure(pg.GraphicsLayoutWidget):
         # Set custom slot for mouseMoved
         self.scene().sigMouseMoved.connect(self.mouseMoved) # pyright: ignore
 
-        # TODO: handle better
+        # Slot to show cursor position
         self._mouseLabel = pg.TextItem(text="", anchor=(0, 1)) # show to top right of cursor
         # self._mouseLabel.setFlag(self._mouseLabel.GraphicsItemFlag.ItemIgnoresTransformations)
         self._plt.addItem(self._mouseLabel, ignoreBounds=True)
 
+    def keyPressEvent(self, ev):
+        if ev.key() == Qt.Key.Key_V:
+            # Toggle cursor mode between position and value
+            self._cursorMode = (self._cursorMode + 1) % 3
+            # Update now
+            self._setMouseLabelText()
+        return super().keyPressEvent(ev)
+
+    def _setMouseLabelText(self):
+        if self._cursorMode == self.CURSOR_SHOW_POS:
+            self._mouseLabel.setText(f"{self._cursorPos[0]:.4g}, {self._cursorPos[1]:.4g}")
+        elif self._cursorMode == self.CURSOR_SHOW_VALUE:
+            # TODO:
+            self._mouseLabel.setText(f"value")
+        else:
+            self._mouseLabel.setText("")
+
     def mouseMoved(self, evt: QPointF):
         if self._plt.sceneBoundingRect().contains(evt): # pyright: ignore
             coords = self._plt.vb.mapSceneToView(evt) # pyright: ignore
+            # Update internal cursor position
+            self._cursorPos[0] = coords.x()
+            self._cursorPos[1] = coords.y()
             # print(f"Mouse position: {coords.x()}, {coords.y()}")
-            self._mouseLabel.setText(f"{coords.x():.4g}, {coords.y():.4g}")
             # Tracking mouse label
             self._mouseLabel.setPos(coords.x(), coords.y())
+            # Update text (using internal cursor positions)
+            self._setMouseLabelText()
 
 
 
@@ -104,6 +131,6 @@ if __name__ == "__main__":
         f2.image(y)
         f2.show()
 
-    if os.name == "nt":
-        forceShow()
+    # if os.name == "nt":
+    #     forceShow()
 
