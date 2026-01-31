@@ -2,7 +2,11 @@ from typing import Iterable
 import pyqtgraph as pg
 import numpy as np
 from PySide6.QtCore import QPointF, Qt, QRectF
+from PySide6.QtWidgets import QApplication
 import os
+
+def closeAllFigs():
+    QApplication.closeAllWindows()
 
 def forceShow():
     app = pg.mkQApp()
@@ -57,18 +61,27 @@ class PgFigure(pg.GraphicsLayoutWidget):
 
         self._plt.addItem(self._im)
 
-        # TODO: maybe make a custom signal/slot?
+        # Set custom slot for mouseMoved
         self.scene().sigMouseMoved.connect(self.mouseMoved) # pyright: ignore
+
+        # TODO: handle better
+        self._mouseLabel = pg.TextItem(text="", anchor=(0, 1)) # show to top right of cursor
+        # self._mouseLabel.setFlag(self._mouseLabel.GraphicsItemFlag.ItemIgnoresTransformations)
+        self._plt.addItem(self._mouseLabel, ignoreBounds=True)
 
     def mouseMoved(self, evt: QPointF):
         if self._plt.sceneBoundingRect().contains(evt): # pyright: ignore
             coords = self._plt.vb.mapSceneToView(evt) # pyright: ignore
-            print(f"Mouse position: {coords.x()}, {coords.y()}")
+            # print(f"Mouse position: {coords.x()}, {coords.y()}")
+            self._mouseLabel.setText(f"{coords.x():.4g}, {coords.y():.4g}")
+            # Tracking mouse label
+            self._mouseLabel.setPos(coords.x(), coords.y())
 
 
 
 if __name__ == "__main__":
     import sys
+    closeAllFigs()
     if len(sys.argv) > 1:
         length = int(sys.argv[1])
     else:
