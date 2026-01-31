@@ -9,6 +9,11 @@ def closeAllFigs():
     QApplication.closeAllWindows()
 
 def forceShow():
+    """
+    Forces the GUI to show, which can help when .show() doesn't work.
+    Usually, .show() should work, even in ipython. Remember to call
+    %gui qt in ipython so that the GUI will not block the interpreter.
+    """
     app = pg.mkQApp()
     app.exec()
 
