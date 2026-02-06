@@ -32,6 +32,7 @@ class PgFigure(pg.GraphicsLayoutWidget):
         self._btmLeftPos = np.array([np.nan, np.nan], dtype=trackingDtype)
         self._pixelSize = np.array([np.nan, np.nan], dtype=trackingDtype)
         self._imgData = None
+        self._cbar = None
 
     @property
     def im(self) -> None | pg.ImageItem:
@@ -80,7 +81,7 @@ class PgFigure(pg.GraphicsLayoutWidget):
         self._im.setLookupTable(cm2use.getLookupTable()) # pyright: ignore
 
         if colorbar:
-            self._plt.addColorBar(self._im, colorMap=cm2use)
+            self._cbar = self._plt.addColorBar(self._im, colorMap=cm2use)
 
         self._plt.addItem(self._im)
 
