@@ -186,8 +186,9 @@ class PgFigure(pg.GraphicsLayoutWidget):
     def _getNearestImagePointIndex(self) -> np.ndarray | None:
         plti, pltj = self._cursorPosPlotIndex
         offset = self._cursorPos[plti][pltj] - self._btmLeftPos[plti][pltj]
-        index = offset / self._pixelSize[plti][pltj]
-        if np.any(index < 0) or np.any(index >= self._imgData[plti][pltj].shape): # pyright: ignore
+        index = offset / self._pixelSize[plti][pltj] # this is in x/y
+        dataRows, dataCols = self._imgData[plti][pltj].shape
+        if np.any(index < 0) or index[0] > dataCols or index[1] > dataRows: # pyright: ignore
             return None
         return index.astype(np.int32)
 
@@ -233,9 +234,13 @@ if __name__ == "__main__":
     closeAllFigs()
     if len(sys.argv) > 1:
         length = int(sys.argv[1])
+        rows = length
+        cols = length + 2
     else:
+        rows = 3
+        cols = 5
         length = 3
-    x = np.arange(length*length).reshape((length, length))
+    x = np.arange(rows * cols).reshape((rows, cols))
     f = PgFigure()
     f.image(x)
     f.show()
