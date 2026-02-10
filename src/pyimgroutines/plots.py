@@ -72,6 +72,7 @@ class PgFigure(pg.GraphicsLayoutWidget):
         self._btmLeftPos = list()
         self._cursorPos = list()
         self._mouseLabel = list()
+        self._cbar = list()
 
         for i in range(rows):
             self._plt.append(list())
@@ -81,6 +82,7 @@ class PgFigure(pg.GraphicsLayoutWidget):
             self._btmLeftPos.append(list())
             self._cursorPos.append(list())
             self._mouseLabel.append(list())
+            self._cbar.append(list())
 
             for j in range(cols):
                 self._plt[-1].append(
@@ -92,6 +94,7 @@ class PgFigure(pg.GraphicsLayoutWidget):
                 self._btmLeftPos[-1].append(np.array([np.nan, np.nan], dtype=self._trackingDtype))
                 self._cursorPos[-1].append(np.array([0, 0], dtype=self._trackingDtype))
                 self._mouseLabel[-1].append(None)
+                self._cbar[-1].append(None)
 
     def image(
         self,
@@ -141,7 +144,7 @@ class PgFigure(pg.GraphicsLayoutWidget):
         self._im[plti][pltj].setLookupTable(cm2use.getLookupTable()) # pyright: ignore
 
         if colorbar:
-            self._cbar = plt.addColorBar(self._im[plti][pltj], colorMap=cm2use)
+            self._cbar[plti][pltj] = plt.addColorBar(self._im[plti][pltj], colorMap=cm2use)
 
         plt.addItem(self._im[plti][pltj])
 
@@ -159,7 +162,22 @@ class PgFigure(pg.GraphicsLayoutWidget):
             self._cursorMode = (self._cursorMode + 1) % 3
             # Update now
             self._setMouseLabelText()
+        elif ev.key() == Qt.Key.Key_C:
+            # Toggle text colour
+            self._toggleTextColour()
         return super().keyPressEvent(ev)
+
+    def _toggleTextColour(self):
+        plti, pltj = self._cursorPosPlotIndex
+        colour = self._mouseLabel[plti][pltj].color
+        # Invert the colour
+        self._mouseLabel[plti][pltj].setColor(
+            pg.mkColor(
+                255 - colour.red(),
+                255 - colour.green(),
+                255 - colour.blue(),
+            )
+        )
 
     def _getNearestImagePointIndex(self) -> np.ndarray | None:
         plti, pltj = self._cursorPosPlotIndex
@@ -243,6 +261,7 @@ if __name__ == "__main__":
                 datac = data.copy()
                 datac[i,j] = np.nan
                 f4.image(datac, pltIdx = (i, j))
+                f4._cbar[i][j].setLevels((1,2))
 
 
 
