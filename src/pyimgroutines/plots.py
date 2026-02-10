@@ -103,7 +103,8 @@ class PgFigure(pg.GraphicsLayoutWidget):
         addHalfPixelBorder: bool = True,
         zvalue: int = -100,
         colorbar: bool = True,
-        pltIdx: tuple[int, int] | None = None
+        pltIdx: tuple[int, int] | None = None,
+        includeLegend: bool = False
     ):
         if pltIdx is None:
             self.setPlotGrid(1, 1)
@@ -113,6 +114,9 @@ class PgFigure(pg.GraphicsLayoutWidget):
             plti, pltj = pltIdx
 
         plt = self.plt[plti][pltj]
+
+        if includeLegend:
+            plt.addLegend()
 
         # Save reference to image data for this subplot
         self._imgData[plti][pltj] = arr
@@ -248,7 +252,8 @@ if __name__ == "__main__":
         z = y.copy().astype(np.float32)
         z[0,0] = np.nan
         z[-1,-1] = np.nan
-        f3.image(z)
+        f3.image(z, includeLegend = True)
+        f3._plt[0][0].plot([1,1],[2,2],name="test?") # Just to show legend
         f3.show()
 
         f4 = PgFigure()
