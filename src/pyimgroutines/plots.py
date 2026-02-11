@@ -17,6 +17,90 @@ def forceShow():
     app = pg.mkQApp()
     app.exec()
 
+# Wrapper around default PlotItem with extra references
+class PgPlotItem:
+    trackingDtype = np.float64
+
+    def __init__(self, plotItem: pg.PlotItem):
+        self._plotItem = plotItem
+        # Extras
+        self._im = None
+        self._plt = None
+        self._cursorPos = np.array([0, 0], dtype=self.trackingDtype)
+        self._cursorPosPlotIndex = np.array([0, 0], dtype=np.int32)
+        self._btmLeftPos = np.array([np.nan, np.nan], dtype=self.trackingDtype)
+        self._pixelSize = np.array([np.nan, np.nan], dtype=self.trackingDtype)
+        self._mouseLabel = None
+        self._imgData = None
+        self._cbar = None
+
+    # Forward everything unknown to the original PlotItem
+    def __getattr__(self, name):
+        return getattr(self._plotItem, name)
+
+    @property
+    def base(self) -> pg.PlotItem:
+        """
+        Return the underlying, original pyqtgraph PlotItem class.
+        """
+        return self._plotItem
+
+    def image(
+        self,
+        arr: np.ndarray,
+        xywh: list | None = None,
+        addHalfPixelBorder: bool = True,
+        zvalue: int = -100,
+        colorbar: bool = True,
+        includeLegend: bool = False
+    ):
+        if includeLegend:
+            self.addLegend()
+
+        # Save reference to image data for this subplot
+        self._imgData = arr
+        self._im = pg.ImageItem(arr, axisOrder='row-major') # default to row-major instead
+
+        # Default to 0,0 bottom left, width and height in pixels
+        if xywh is None:
+            xywh = [0, 0, arr.shape[1], arr.shape[0]]
+
+        # Centres each pixel on the grid coordinates (instead of corners)
+        pixelWidth = 1
+        pixelHeight = 1
+        if addHalfPixelBorder:
+            pixelWidth = xywh[2] / arr.shape[1]
+            pixelHeight = xywh[3] / arr.shape[0]
+            xywh[0] -= 0.5 * pixelWidth
+            xywh[1] -= 0.5 * pixelHeight
+
+        # Cache these for mouse-over mechanics
+        self._btmLeftPos[0] = xywh[0]
+        self._btmLeftPos[1] = xywh[1]
+        self._pixelSize[0] = pixelWidth
+        self._pixelSize[1] = pixelHeight
+
+        self._im.setRect(QRectF(*xywh))
+        self._im.setZValue(zvalue)
+
+        cm2use = pg.colormap.getFromMatplotlib("viridis")
+        self._im.setLookupTable(cm2use.getLookupTable()) # pyright: ignore
+
+        if colorbar:
+            self._cbar = self.addColorBar(self._im, colorMap=cm2use)
+
+        self.addItem(self._im)
+
+        # Slot to show cursor position
+        self._mouseLabel = pg.TextItem(text="UNSET TEXT", anchor=(0, 1)) # show to top right of cursor
+        # self._mouseLabel.setFlag(self._mouseLabel.GraphicsItemFlag.ItemIgnoresTransformations)
+        self.addItem(self._mouseLabel, ignoreBounds=True)
+
+        # # Set custom slot for mouseMoved
+        # self.scene().sigMouseMoved.connect(self.mouseMoved) # pyright: ignore
+        #
+
+
 class PgFigure(pg.GraphicsLayoutWidget):
     CURSOR_SHOW_NONE = 0
     CURSOR_SHOW_POS = 1
@@ -195,7 +279,7 @@ class PgFigure(pg.GraphicsLayoutWidget):
     def _setMouseLabelText(self):
         plti, pltj = self._cursorPosPlotIndex
         if self._cursorMode == self.CURSOR_SHOW_POS:
-            self._mouseLabel[plti][pltj].setText(f"{self._cursorPos[plti][pltj][0]:.4g}, {self._cursorPos[plti][pltj][1]:.4g}")
+            self._mouseLabel[plti][pltj].setText(f"{self._cursorPos[plti][pltj][0]:.6g}, {self._cursorPos[plti][pltj][1]:.6g}")
         elif self._cursorMode == self.CURSOR_SHOW_VALUE:
             index = self._getNearestImagePointIndex() # pyright: ignore
             if index is None:
@@ -274,6 +358,14 @@ if __name__ == "__main__":
                 f4._cbar[i][j].setLevels((1,2))
 
 
+        tf = pg.GraphicsLayoutWidget(title="Wrapper test")
+        oplt1 = tf.addPlot(0,0)
+        oplt2 = tf.addPlot(0,1)
+        oplt1 = PgPlotItem(oplt1)
+        oplt1.image(x)
+        oplt2 = PgPlotItem(oplt2)
+        oplt2.image(y)
+        tf.show()
 
 
     # if os.name == "nt":
