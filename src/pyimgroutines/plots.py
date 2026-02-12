@@ -180,12 +180,26 @@ class PgFigure(pg.GraphicsLayoutWidget):
     def plts(self) -> np.ndarray:
         return self._plts
 
-    def setPlotGrid(self, rows: int, cols: int):
+    def setPlotGrid(
+        self,
+        rows: int,
+        cols: int,
+        linkX: bool = False,
+        linkY: bool = False,
+        aspectLocked: bool = False
+    ):
         self.clear() # pyright: ignore
         self._plts = np.empty((rows, cols), dtype=object)
-        for i in range(rows):
-            for j in range(cols):
-                self._plts[i,j] = PgPlotItem(self.addPlot(row=i, col=j), self) # pyright: ignore
+        for i, j in np.ndindex(self._plts.shape):
+            plt = PgPlotItem(self.addPlot(row=i, col=j), self) # pyright: ignore
+            if aspectLocked:
+                plt.setAspectLocked()
+            if linkX and (i + j > 0):
+                plt.setXLink(self._plts[0, 0])
+            if linkY and (i + j > 0):
+                plt.setYLink(self._plts[0, 0])
+            # TODO: if both links specified then enable across subplot mouse tracking
+            self._plts[i, j] = plt
 
     def keyPressEvent(self, ev):
         plt = self[self._currPlotIndex[0], self._currPlotIndex[1]]
@@ -248,7 +262,7 @@ if __name__ == "__main__":
         f3.show()
 
         f4 = PgFigure()
-        f4.setPlotGrid(2,2)
+        f4.setPlotGrid(2,2,True,True,True)
         # print(f4.plt)
         f4.show()
         data = np.arange(2*2).reshape((2,2)).astype(np.float32)
