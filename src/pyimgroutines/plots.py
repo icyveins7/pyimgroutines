@@ -1,9 +1,10 @@
+from __future__ import annotations
 from typing import Iterable
 import pyqtgraph as pg
 import numpy as np
+from numpy import typing as npt
 from PySide6.QtCore import QPointF, Qt, QRectF
 from PySide6.QtWidgets import QApplication
-import os
 
 def closeAllFigs():
     QApplication.closeAllWindows()
@@ -21,18 +22,22 @@ def forceShow():
 class PgPlotItem:
     trackingDtype = np.float64
 
-    def __init__(self, plotItem: pg.PlotItem):
+    CURSOR_SHOW_NONE = 0
+    CURSOR_SHOW_POS = 1
+    CURSOR_SHOW_VALUE = 2
+
+    def __init__(self, plotItem: pg.PlotItem, parent: PgFigure):
         self._plotItem = plotItem
+        self._parent = parent
         # Extras
-        self._im = None
-        self._plt = None
-        self._cursorPos = np.array([0, 0], dtype=self.trackingDtype)
-        self._cursorPosPlotIndex = np.array([0, 0], dtype=np.int32)
+        self._cursorMode = self.CURSOR_SHOW_POS
+        self._im = pg.ImageItem()
+        self._cursorPos = np.array([np.nan, np.nan], dtype=self.trackingDtype)
         self._btmLeftPos = np.array([np.nan, np.nan], dtype=self.trackingDtype)
         self._pixelSize = np.array([np.nan, np.nan], dtype=self.trackingDtype)
-        self._mouseLabel = None
-        self._imgData = None
-        self._cbar = None
+        self._mouseLabel = pg.TextItem()
+        self._imgData = np.empty((0, 0), dtype=np.float32)
+        self._cbar = pg.ColorBarItem()
 
     # Forward everything unknown to the original PlotItem
     def __getattr__(self, name):
@@ -44,6 +49,19 @@ class PgPlotItem:
         Return the underlying, original pyqtgraph PlotItem class.
         """
         return self._plotItem
+
+    @property
+    def im(self) -> pg.ImageItem:
+        return self._im
+
+    @property
+    def cbar(self) -> pg.ColorBarItem:
+        return self._cbar
+
+    @property
+    def imgData(self) -> np.ndarray:
+        return self._imgData
+
 
     def image(
         self,
@@ -92,174 +110,21 @@ class PgPlotItem:
         self.addItem(self._im)
 
         # Slot to show cursor position
-        self._mouseLabel = pg.TextItem(text="UNSET TEXT", anchor=(0, 1)) # show to top right of cursor
+        self._mouseLabel = pg.TextItem(text="", anchor=(0, 1)) # show to top right of cursor
         # self._mouseLabel.setFlag(self._mouseLabel.GraphicsItemFlag.ItemIgnoresTransformations)
         self.addItem(self._mouseLabel, ignoreBounds=True)
 
-        # # Set custom slot for mouseMoved
-        # self.scene().sigMouseMoved.connect(self.mouseMoved) # pyright: ignore
-        #
-
-
-class PgFigure(pg.GraphicsLayoutWidget):
-    CURSOR_SHOW_NONE = 0
-    CURSOR_SHOW_POS = 1
-    CURSOR_SHOW_VALUE = 2
-
-    def __init__(self, *args, trackingDtype: type = np.float64, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        self._cursorMode = self.CURSOR_SHOW_POS
-        self._trackingDtype = trackingDtype
-
-        # Plot-specific
-        self._im = None
-        self._plt = None
-        self._cursorPos = np.array([0, 0], dtype=trackingDtype)
-        self._cursorPosPlotIndex = np.array([0, 0], dtype=np.int32)
-        self._btmLeftPos = np.array([np.nan, np.nan], dtype=trackingDtype)
-        self._pixelSize = np.array([np.nan, np.nan], dtype=trackingDtype)
-        self._mouseLabel = None
-        self._imgData = None
-        self._cbar = None
-
-    @property
-    def im(self) -> None | pg.ImageItem:
-        return self._im
-
-    def __getitem__(self, idx: tuple | int):
-        """
-        Return the plot from the grid of plots.
-        """
-        if self._plt is None:
-            raise TypeError("No plots currently set")
-
-        if isinstance(idx, int):
-            if len(self._plt) > 1:
-                raise IndexError("More than 1 row of plots, invalid single index")
-            return self._plt[0][idx]
-        elif isinstance(idx, tuple):
-            return self._plt[idx[0]][idx[1]]
-
-    @property
-    def plt(self) -> list[list[pg.PlotItem]]:
-        if self._plt is None:
-            raise TypeError("Plots have not yet been added")
-        return self._plt
-
-    def setPlotGrid(self, rows: int, cols: int):
-        # Reset all plot-related things
-        self._plt = list()
-        self._imgData = list()
-        self._im = list()
-        self._pixelSize = list()
-        self._btmLeftPos = list()
-        self._cursorPos = list()
-        self._mouseLabel = list()
-        self._cbar = list()
-
-        for i in range(rows):
-            self._plt.append(list())
-            self._imgData.append(list())
-            self._im.append(list())
-            self._pixelSize.append(list())
-            self._btmLeftPos.append(list())
-            self._cursorPos.append(list())
-            self._mouseLabel.append(list())
-            self._cbar.append(list())
-
-            for j in range(cols):
-                self._plt[-1].append(
-                    self.addPlot(row=i, col=j) # pyright:ignore
-                )
-                self._imgData[-1].append(None)
-                self._im[-1].append(None)
-                self._pixelSize[-1].append(np.array([np.nan, np.nan], dtype=self._trackingDtype))
-                self._btmLeftPos[-1].append(np.array([np.nan, np.nan], dtype=self._trackingDtype))
-                self._cursorPos[-1].append(np.array([0, 0], dtype=self._trackingDtype))
-                self._mouseLabel[-1].append(None)
-                self._cbar[-1].append(None)
-
-    def image(
-        self,
-        arr: np.ndarray,
-        xywh: list | None = None,
-        addHalfPixelBorder: bool = True,
-        zvalue: int = -100,
-        colorbar: bool = True,
-        pltIdx: tuple[int, int] | None = None,
-        includeLegend: bool = False
-    ):
-        if pltIdx is None:
-            self.setPlotGrid(1, 1)
-            plti = 0
-            pltj = 0
-        else:
-            plti, pltj = pltIdx
-
-        plt = self.plt[plti][pltj]
-
-        if includeLegend:
-            plt.addLegend()
-
-        # Save reference to image data for this subplot
-        self._imgData[plti][pltj] = arr
-        self._im[plti][pltj] = pg.ImageItem(arr, axisOrder='row-major') # default to row-major instead
-
-        # Default to 0,0 bottom left, width and height in pixels
-        if xywh is None:
-            xywh = [0, 0, arr.shape[1], arr.shape[0]]
-
-        # Centres each pixel on the grid coordinates (instead of corners)
-        pixelWidth = 1
-        pixelHeight = 1
-        if addHalfPixelBorder:
-            pixelWidth = xywh[2] / arr.shape[1]
-            pixelHeight = xywh[3] / arr.shape[0]
-            xywh[0] -= 0.5 * pixelWidth
-            xywh[1] -= 0.5 * pixelHeight
-
-        # Cache these for mouse-over mechanics
-        self._btmLeftPos[plti][pltj][0] = xywh[0]
-        self._btmLeftPos[plti][pltj][1] = xywh[1]
-        self._pixelSize[plti][pltj][0] = pixelWidth
-        self._pixelSize[plti][pltj][1] = pixelHeight
-
-        self._im[plti][pltj].setRect(QRectF(*xywh))
-        self._im[plti][pltj].setZValue(zvalue)
-
-        cm2use = pg.colormap.getFromMatplotlib("viridis")
-        self._im[plti][pltj].setLookupTable(cm2use.getLookupTable()) # pyright: ignore
-
-        if colorbar:
-            self._cbar[plti][pltj] = plt.addColorBar(self._im[plti][pltj], colorMap=cm2use)
-
-        plt.addItem(self._im[plti][pltj])
-
         # Set custom slot for mouseMoved
-        self.scene().sigMouseMoved.connect(self.mouseMoved) # pyright: ignore
+        self._parent.scene().sigMouseMoved.connect(self._parent.mouseMoved) # pyright: ignore
 
-        # Slot to show cursor position
-        self._mouseLabel[plti][pltj] = pg.TextItem(text="", anchor=(0, 1)) # show to top right of cursor
-        # self._mouseLabel.setFlag(self._mouseLabel.GraphicsItemFlag.ItemIgnoresTransformations)
-        plt.addItem(self._mouseLabel[plti][pltj], ignoreBounds=True)
-
-    def keyPressEvent(self, ev):
-        if ev.key() == Qt.Key.Key_V:
-            # Toggle cursor mode between position and value
-            self._cursorMode = (self._cursorMode + 1) % 3
-            # Update now
-            self._setMouseLabelText()
-        elif ev.key() == Qt.Key.Key_C:
-            # Toggle text colour
-            self._toggleTextColour()
-        return super().keyPressEvent(ev)
+    def _rotateCursorMode(self):
+        self._cursorMode = (self._cursorMode + 1) % 3
+        self._setMouseLabelText()
 
     def _toggleTextColour(self):
-        plti, pltj = self._cursorPosPlotIndex
-        colour = self._mouseLabel[plti][pltj].color
+        colour = self._mouseLabel.color
         # Invert the colour
-        self._mouseLabel[plti][pltj].setColor(
+        self._mouseLabel.setColor(
             pg.mkColor(
                 255 - colour.red(),
                 255 - colour.green(),
@@ -268,47 +133,84 @@ class PgFigure(pg.GraphicsLayoutWidget):
         )
 
     def _getNearestImagePointIndex(self) -> np.ndarray | None:
-        plti, pltj = self._cursorPosPlotIndex
-        offset = self._cursorPos[plti][pltj] - self._btmLeftPos[plti][pltj]
-        index = offset / self._pixelSize[plti][pltj] # this is in x/y
-        dataRows, dataCols = self._imgData[plti][pltj].shape
+        offset = self._cursorPos - self._btmLeftPos
+        index = offset / self._pixelSize # this is in x/y
+        dataRows, dataCols = self._imgData.shape
         if np.any(index < 0) or index[0] > dataCols or index[1] > dataRows: # pyright: ignore
             return None
         return index.astype(np.int32)
 
     def _setMouseLabelText(self):
-        plti, pltj = self._cursorPosPlotIndex
         if self._cursorMode == self.CURSOR_SHOW_POS:
-            self._mouseLabel[plti][pltj].setText(f"{self._cursorPos[plti][pltj][0]:.6g}, {self._cursorPos[plti][pltj][1]:.6g}")
+            self._mouseLabel.setText(f"{self._cursorPos[0]:.6g}, {self._cursorPos[1]:.6g}")
         elif self._cursorMode == self.CURSOR_SHOW_VALUE:
             index = self._getNearestImagePointIndex() # pyright: ignore
             if index is None:
-                self._mouseLabel[plti][pltj].setText(f"OOB") # pyright: ignore
+                self._mouseLabel.setText(f"OOB") # pyright: ignore
             else:
-                self._mouseLabel[plti][pltj].setText(f"{self._imgData[plti][pltj][int(index[1]), int(index[0])]}") # pyright: ignore
+                self._mouseLabel.setText(f"{self._imgData[int(index[1]), int(index[0])]}") # pyright: ignore
         else:
-            self._mouseLabel[plti][pltj].setText("")
+            self._mouseLabel.setText("")
 
-    def _setCursorPositionInPlot(self, coords, plti, pltj):
-        self._cursorPosPlotIndex[0] = plti
-        self._cursorPosPlotIndex[1] = pltj
-        self._cursorPos[plti][pltj][0] = coords.x()
-        self._cursorPos[plti][pltj][1] = coords.y()
+    def _setCursorPositionInPlot(self, coords):
+        self._cursorPos[0] = coords.x()
+        self._cursorPos[1] = coords.y()
+        self._mouseLabel.setPos(self._cursorPos[0], self._cursorPos[1])
+
+
+class PgFigure(pg.GraphicsLayoutWidget):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._plts = np.empty((0, 0), dtype=PgPlotItem)
+        self._currPlotIndex = np.array([0, 0], dtype=np.uint8)
+        self.setPlotGrid(1, 1) # Default to having a single plot
+
+    def __getitem__(self, idx: tuple | int) -> PgPlotItem:
+        """
+        Return the indexed plot from the grid of plots.
+        """
+        return self._plts[idx]
+
+    @property
+    def plt(self) -> PgPlotItem:
+        if self._plts.size != 1:
+            raise ValueError(".plt can only be used when there is only 1 plot!")
+        return self._plts[0,0]
+
+    @property
+    def plts(self) -> np.ndarray:
+        return self._plts
+
+    def setPlotGrid(self, rows: int, cols: int):
+        self.clear() # pyright: ignore
+        self._plts = np.empty((rows, cols), dtype=object)
+        for i in range(rows):
+            for j in range(cols):
+                self._plts[i,j] = PgPlotItem(self.addPlot(row=i, col=j), self) # pyright: ignore
+
+    def keyPressEvent(self, ev):
+        plt = self[self._currPlotIndex[0], self._currPlotIndex[1]]
+        if ev.key() == Qt.Key.Key_V:
+            # Toggle cursor mode between position and value
+            plt._rotateCursorMode()
+        elif ev.key() == Qt.Key.Key_C:
+            # Toggle text colour
+            plt._toggleTextColour()
+        return super().keyPressEvent(ev)
 
     def mouseMoved(self, evt: QPointF):
-        for i, rowPlt in enumerate(self.plt):
-            for j, plt in enumerate(rowPlt):
+        for i in range(self._plts.shape[0]):
+            for j in range(self._plts.shape[1]):
+                plt = self._plts[i,j]
                 if plt.sceneBoundingRect().contains(evt): # pyright: ignore
+                    # Cache that this is the currently hovered plot
+                    self._currPlotIndex[:] = [i, j]
                     # print(f"in {i},{j}")
                     coords = plt.vb.mapSceneToView(evt) # pyright: ignore
-                    # Update internal cursor position
-                    self._setCursorPositionInPlot(coords, i, j)
-                    # print(f"Mouse position: {coords.x()}, {coords.y()}")
-                    # Tracking mouse label
-                    self._mouseLabel[i][j].setPos(coords.x(), coords.y())
+                    # Update internal cursor position and mouse label position
+                    plt._setCursorPositionInPlot(coords)
                     # Update text (using internal cursor positions)
-                    self._setMouseLabelText()
-
+                    plt._setMouseLabelText()
                     return
 
 
@@ -316,6 +218,19 @@ class PgFigure(pg.GraphicsLayoutWidget):
 if __name__ == "__main__":
     import sys
     closeAllFigs()
+
+    # f = PgFigure()
+    # f.setPlotGrid(2,3)
+    # x = np.arange(6).reshape((2,3))
+    # for i in range(2):
+    #     for j in range(3):
+    #         y = x.copy()
+    #         y[i, j] = 10
+    #         f.plts[i, j].image(y)
+    #
+    # f.show()
+    #
+
     if len(sys.argv) > 1:
         length = int(sys.argv[1])
         rows = length
@@ -326,7 +241,7 @@ if __name__ == "__main__":
         length = 3
     x = np.arange(rows * cols).reshape((rows, cols))
     f = PgFigure()
-    f.image(x)
+    f.plt.image(x)
     f.show()
 
     if length <= 7:
@@ -334,15 +249,15 @@ if __name__ == "__main__":
         y = np.arange(length*length)
         y = y % 2
         y = y.reshape((length, length))
-        f2.image(y)
+        f2.plt.image(y)
         f2.show()
 
         f3 = PgFigure()
         z = y.copy().astype(np.float32)
         z[0,0] = np.nan
         z[-1,-1] = np.nan
-        f3.image(z, includeLegend = True)
-        f3._plt[0][0].plot([1,1],[2,2],name="test?") # Just to show legend
+        f3.plt.image(z, includeLegend = True)
+        f3[0,0].plot([1,1],[2,2],name="test?") # Just to show legend
         f3.show()
 
         f4 = PgFigure()
@@ -350,22 +265,11 @@ if __name__ == "__main__":
         # print(f4.plt)
         f4.show()
         data = np.arange(2*2).reshape((2,2)).astype(np.float32)
-        for i, row in enumerate(f4.plt):
-            for j, plt in enumerate(row):
-                datac = data.copy()
-                datac[i,j] = np.nan
-                f4.image(datac, pltIdx = (i, j))
-                f4._cbar[i][j].setLevels((1,2))
-
-
-        tf = pg.GraphicsLayoutWidget(title="Wrapper test")
-        oplt1 = tf.addPlot(0,0)
-        oplt2 = tf.addPlot(0,1)
-        oplt1 = PgPlotItem(oplt1)
-        oplt1.image(x)
-        oplt2 = PgPlotItem(oplt2)
-        oplt2.image(y)
-        tf.show()
+        for (i, j), plt in np.ndenumerate(f4.plts):
+            datac = data.copy()
+            datac[i,j] = np.nan
+            plt.image(datac)
+            plt._cbar.setLevels((1,2))
 
 
     # if os.name == "nt":
