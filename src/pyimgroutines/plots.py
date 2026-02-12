@@ -62,7 +62,6 @@ class PgPlotItem:
     def imgData(self) -> np.ndarray:
         return self._imgData
 
-
     def image(
         self,
         arr: np.ndarray,
@@ -219,18 +218,6 @@ if __name__ == "__main__":
     import sys
     closeAllFigs()
 
-    # f = PgFigure()
-    # f.setPlotGrid(2,3)
-    # x = np.arange(6).reshape((2,3))
-    # for i in range(2):
-    #     for j in range(3):
-    #         y = x.copy()
-    #         y[i, j] = 10
-    #         f.plts[i, j].image(y)
-    #
-    # f.show()
-    #
-
     if len(sys.argv) > 1:
         length = int(sys.argv[1])
         rows = length
@@ -269,7 +256,7 @@ if __name__ == "__main__":
             datac = data.copy()
             datac[i,j] = np.nan
             plt.image(datac)
-            plt._cbar.setLevels((1,2))
+            plt.cbar.setLevels((1,2))
 
 
     # if os.name == "nt":
