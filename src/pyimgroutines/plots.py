@@ -113,8 +113,9 @@ class PgPlotItem:
         # self._mouseLabel.setFlag(self._mouseLabel.GraphicsItemFlag.ItemIgnoresTransformations)
         self.addItem(self._mouseLabel, ignoreBounds=True)
 
-        # Set custom slot for mouseMoved
+        # Set custom slot for mouseMoved/mouseClicked
         self._parent.scene().sigMouseMoved.connect(self._parent.mouseMoved) # pyright: ignore
+        self._parent.scene().sigMouseClicked.connect(self._parent.mouseClicked) # pyright: ignore
 
     def _rotateCursorMode(self):
         self._cursorMode = (self._cursorMode + 1) % 3
@@ -164,6 +165,8 @@ class PgFigure(pg.GraphicsLayoutWidget):
         self._currPlotIndex = np.array([0, 0], dtype=np.uint8)
         self.setPlotGrid(1, 1) # Default to having a single plot
 
+        self._isMaximized = False
+
     def __getitem__(self, idx: tuple | int) -> PgPlotItem:
         """
         Return the indexed plot from the grid of plots.
@@ -209,7 +212,28 @@ class PgFigure(pg.GraphicsLayoutWidget):
         elif ev.key() == Qt.Key.Key_C:
             # Toggle text colour
             plt._toggleTextColour()
+        elif ev.key() == Qt.Key.Key_Escape and self._isMaximized:
+            self.subplotMinimize()
         return super().keyPressEvent(ev)
+
+    def subplotMaximize(self):
+        i, j = self._currPlotIndex
+        plt = self[i,j].base
+        # wipe layout, items are still cached
+        self.clear() # pyright:ignore
+        self.addItem(plt, row=0, col=0) # pyright: ignore
+        # TODO: for any plot other than 0,0 it seems the xlim/ylim is not retained
+        self._isMaximized = True
+
+    def subplotMinimize(self):
+        self.clear() # pyright:ignore
+        for (i, j), plt in np.ndenumerate(self._plts):
+            self.addItem(plt.base, row=i, col=j) # pyright:ignore
+        self._isMaximized = False
+
+    def mouseClicked(self, evt):
+        if evt.double() and not self._isMaximized and self._plts.size > 1:
+            self.subplotMaximize()
 
     def mouseMoved(self, evt: QPointF):
         for i in range(self._plts.shape[0]):
