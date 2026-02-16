@@ -31,13 +31,16 @@ class PgPlotItem:
         self._parent = parent
         # Extras
         self._cursorMode = self.CURSOR_SHOW_POS
-        self._im = pg.ImageItem()
+        self._im = None
+        # NOTE: where the cursor actually is, not necessarily where the label is
         self._cursorPos = np.array([np.nan, np.nan], dtype=self.trackingDtype)
         self._btmLeftPos = np.array([np.nan, np.nan], dtype=self.trackingDtype)
         self._pixelSize = np.array([np.nan, np.nan], dtype=self.trackingDtype)
         self._mouseLabel = pg.TextItem()
         self._imgData = np.empty((0, 0), dtype=np.float32)
         self._cbar = pg.ColorBarItem()
+        self._lockedPointing = False
+        self._addHalfPixelBorder = False
 
     # Forward everything unknown to the original PlotItem
     def __getattr__(self, name):
@@ -52,6 +55,8 @@ class PgPlotItem:
 
     @property
     def im(self) -> pg.ImageItem:
+        if self._im is None:
+            raise TypeError("No image item created yet")
         return self._im
 
     @property
@@ -90,6 +95,7 @@ class PgPlotItem:
             pixelHeight = xywh[3] / arr.shape[0]
             xywh[0] -= 0.5 * pixelWidth
             xywh[1] -= 0.5 * pixelHeight
+            self._addHalfPixelBorder = addHalfPixelBorder
 
         # Cache these for mouse-over mechanics
         self._btmLeftPos[0] = xywh[0]
@@ -119,7 +125,7 @@ class PgPlotItem:
 
     def _rotateCursorMode(self):
         self._cursorMode = (self._cursorMode + 1) % 3
-        self._setMouseLabelText()
+        self._setMouseLabelTextAndPos()
 
     def _toggleTextColour(self):
         colour = self._mouseLabel.color
@@ -140,22 +146,54 @@ class PgPlotItem:
             return None
         return index.astype(np.int32)
 
-    def _setMouseLabelText(self):
-        if self._cursorMode == self.CURSOR_SHOW_POS:
-            self._mouseLabel.setText(f"{self._cursorPos[0]:.6g}, {self._cursorPos[1]:.6g}")
-        elif self._cursorMode == self.CURSOR_SHOW_VALUE:
-            index = self._getNearestImagePointIndex() # pyright: ignore
-            if index is None:
-                self._mouseLabel.setText(f"OOB") # pyright: ignore
+    def _getLockedPosition(self):
+        index = self._getNearestImagePointIndex()
+        if index is None:
+            return None, None
+        bottomLeftPointerPos = self._btmLeftPos + self._pixelSize * 0.5 * self._addHalfPixelBorder
+        return index * self._pixelSize + bottomLeftPointerPos, index
+
+    def _setMouseLabelTextAndPos(self):
+        # Set the position of the label
+        if self._lockedPointing:
+            pos, index = self._getLockedPosition()
+        else:
+            pos = self._cursorPos
+            index = None
+
+        # Only set text if position is valid
+        if pos is not None:
+            self._mouseLabel.setPos(pos[0], pos[1])
+
+            # Set the text of the label
+            if self._cursorMode == self.CURSOR_SHOW_POS:
+                self._mouseLabel.setText(f"{pos[0]:.6g}, {pos[1]:.6g}")
+            elif self._cursorMode == self.CURSOR_SHOW_VALUE:
+                index = self._getNearestImagePointIndex() # pyright: ignore
+                if index is None:
+                    self._mouseLabel.setText(f"OOB") # pyright: ignore
+                else:
+                    self._mouseLabel.setText(f"[{int(index[1])}, {int(index[0])}]: {self._imgData[int(index[1]), int(index[0])]}") # pyright: ignore
             else:
-                self._mouseLabel.setText(f"{self._imgData[int(index[1]), int(index[0])]}") # pyright: ignore
+                self._mouseLabel.setText("")
         else:
             self._mouseLabel.setText("")
+
 
     def _setCursorPositionInPlot(self, coords):
         self._cursorPos[0] = coords.x()
         self._cursorPos[1] = coords.y()
-        self._mouseLabel.setPos(self._cursorPos[0], self._cursorPos[1])
+
+    def _toggleImage(self):
+        if self._im is not None:
+            self._im.setVisible(
+                not self._im.isVisible()
+            )
+
+    def _toggleLockedPointing(self):
+        self._lockedPointing = not self._lockedPointing
+        # Re-render the text labels
+        self._setMouseLabelTextAndPos()
 
 
 class PgFigure(pg.GraphicsLayoutWidget):
@@ -214,6 +252,10 @@ class PgFigure(pg.GraphicsLayoutWidget):
             plt._toggleTextColour()
         elif ev.key() == Qt.Key.Key_Escape and self._isMaximized:
             self.subplotMinimize()
+        elif ev.key() == Qt.Key.Key_I:
+            plt._toggleImage()
+        elif ev.key() == Qt.Key.Key_L:
+            plt._toggleLockedPointing()
         return super().keyPressEvent(ev)
 
     def subplotMaximize(self):
@@ -244,10 +286,10 @@ class PgFigure(pg.GraphicsLayoutWidget):
                     self._currPlotIndex[:] = [i, j]
                     # print(f"in {i},{j}")
                     coords = plt.vb.mapSceneToView(evt) # pyright: ignore
-                    # Update internal cursor position and mouse label position
+                    # Cache internal cursor position
                     plt._setCursorPositionInPlot(coords)
-                    # Update text (using internal cursor positions)
-                    plt._setMouseLabelText()
+                    # Update text and position
+                    plt._setMouseLabelTextAndPos()
                     return
 
 
