@@ -67,6 +67,42 @@ class PgPlotItem:
     def imgData(self) -> np.ndarray:
         return self._imgData
 
+    def rectangle(
+        self,
+        xy: tuple | list | np.ndarray,
+        wh: tuple | list | np.ndarray,
+        pen: str = "r"
+    ):
+        """
+        Adds a rectangle via pg.ROI.
+
+        Parameters
+        ----------
+        xy : tuple | list | np.ndarray
+            Bottom-left point.
+
+        wh : tuple | list | np.ndarray
+            Width/height.
+
+        pen : str
+            Colour of the rectangle border.
+
+
+        Returns
+        -------
+        rect : pg.ROI
+            Rectangle item.
+        """
+        # RectROI creates a non-removable scaler at the top right,
+        # so we don't use it
+        rect = pg.ROI(xy, wh, pen=pg.mkPen(pen), # pyright: ignore
+                          movable=False,
+                          rotatable=False,
+                          resizable=False,
+                          antialias=False)
+        self.addItem(rect)
+        return rect
+
     def image(
         self,
         arr: np.ndarray,
@@ -309,6 +345,7 @@ if __name__ == "__main__":
     x = np.arange(rows * cols).reshape((rows, cols))
     f = PgFigure()
     f.plt.image(x)
+    f.plt.rectangle((-1,-1), (cols + 1, rows + 1))
     f.show()
 
     if length <= 7:
