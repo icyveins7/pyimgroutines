@@ -112,6 +112,39 @@ class PgPlotItem:
         colorbar: bool = True,
         includeLegend: bool = False
     ):
+        """
+        Plots an image from a numpy array.
+        Creates a pg.ImageItem and adds it to the plot, with sensible defaults.
+        The expected convention is y-axis upwards, as is created by PgFigure.
+
+        Parameters
+        ----------
+        arr : np.ndarray
+            Input data for the image.
+
+        xywh : list | None
+            Bottom-left position (x/y) and width/height (w/h) in a list.
+            Defaults to None, which simply uses (0, 0) and the number of pixels respectively.
+
+        addHalfPixelBorder : bool
+            Whether to automatically add half a pixel as a border around the entire image.
+            This ensures that pixels are centred on the points, rather than having the pixels
+            be vertices.
+
+            Example: a 2x2 matrix will extend from -0.5 to +1.5 pixels instead of 0 to 2.
+
+            Defaults to True.
+
+        zvalue : int
+            Priority/height of the image. Lower numbers will paint the image 'behind' other items.
+
+        colorbar : bool
+            Whether to include a colorbar. Defaults to True.
+
+        includeLegend : bool
+            Whether to include a legend. The image item itself is not added to the legend,
+            but this is useful so other traditional plot items can be added and show up.
+        """
         if includeLegend:
             self.addLegend()
 
@@ -233,6 +266,29 @@ class PgPlotItem:
 
 
 class PgFigure(pg.GraphicsLayoutWidget):
+    """
+    A pyqtgraph 'figure', built on a subclass around a GraphicsLayoutWidget,
+    and internal PgPlotItems, which are subclasses around pg.PlotItem.
+
+    General use-case is to create this, and then use .setPlotGrid() if multiple subplots are required,
+    similar to matplotlib's plt.subplots().
+
+    Each subplot can be accessed via the index operator (or via .plt if there is only 1 subplot).
+
+    Examples:
+        fig = PgFigure()
+        fig.plt.image(...)
+
+        mfig = PgFigure()
+        mfig.setPlotGrid(2, 2) # 2x2 subplots
+        mfig[0,0].image(...) # Plots at the top-left
+        mfig[1,1].image(...) # Plots at the bottom-right
+
+    Additional features:
+        - In-built cursor tracking (Hotkey V to toggle modes)
+        - In-built subplot minimization/maximization (Double-click/Esc)
+        - In-built pixel magnetization (Hotkey L)
+    """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._plts = np.empty((0, 0), dtype=PgPlotItem)
@@ -249,12 +305,20 @@ class PgFigure(pg.GraphicsLayoutWidget):
 
     @property
     def plt(self) -> PgPlotItem:
+        """
+        Returns the lone PgPlotItem (subplot).
+        This is primarily used as syntactic sugar when there is only 1 subplot,
+        although indexing (e.g. fig[0,0]) still works.
+
+        Throws an error if there are multiple subplots.
+        """
         if self._plts.size != 1:
             raise ValueError(".plt can only be used when there is only 1 plot!")
         return self._plts[0,0]
 
     @property
     def plts(self) -> np.ndarray:
+        """Returns all subplots."""
         return self._plts
 
     def setPlotGrid(
@@ -265,6 +329,26 @@ class PgFigure(pg.GraphicsLayoutWidget):
         linkY: bool = False,
         aspectLocked: bool = False
     ):
+        """
+        Creates multiple subplots in a grid.
+
+        Parameters
+        ----------
+        rows : int
+            Number of rows of subplots.
+
+        cols : int
+            Number of columns of subplots.
+
+        linkX : bool
+            Whether to globally link all subplots' x-axes.
+
+        linkY : bool
+            Whether to globally link all subplots' y-axes.
+
+        aspectLocked : bool
+            Whether to globally lock all aspect ratios i.e. 'equal' aspect ratio.
+        """
         self.clear() # pyright: ignore
         self._plts = np.empty((rows, cols), dtype=object)
         for i, j in np.ndindex(self._plts.shape):
