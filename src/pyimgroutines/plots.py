@@ -289,13 +289,29 @@ class PgFigure(pg.GraphicsLayoutWidget):
         - In-built subplot minimization/maximization (Double-click/Esc)
         - In-built pixel magnetization (Hotkey L)
     """
+    FIGURE_INDEX = 1
+
     def __init__(self, *args, **kwargs):
+        """
+        Instantiate a new PgFigure, with a default single subplot.
+
+        All input arguments are passed to pg.GraphicsLayoutWidget().
+        """
+        self._figIndex = self._getFigureIndex()
+        if "title" not in kwargs:
+            kwargs["title"] = f"PgFigure_{self._figIndex}"
         super().__init__(*args, **kwargs)
         self._plts = np.empty((0, 0), dtype=PgPlotItem)
         self._currPlotIndex = np.array([0, 0], dtype=np.uint8)
         self.setPlotGrid(1, 1) # Default to having a single plot
 
         self._isMaximized = False
+
+    def _getFigureIndex(self) -> int:
+        index = PgFigure.FIGURE_INDEX
+        # Increment static var for next figure
+        PgFigure.FIGURE_INDEX += 1
+        return index
 
     def __getitem__(self, idx: tuple | int) -> PgPlotItem:
         """
@@ -327,7 +343,9 @@ class PgFigure(pg.GraphicsLayoutWidget):
         cols: int,
         linkX: bool = False,
         linkY: bool = False,
-        aspectLocked: bool = False
+        aspectLocked: bool = False,
+        xlabel: str | None = None,
+        ylabel: str | None = None
     ):
         """
         Creates multiple subplots in a grid.
@@ -348,6 +366,12 @@ class PgFigure(pg.GraphicsLayoutWidget):
 
         aspectLocked : bool
             Whether to globally lock all aspect ratios i.e. 'equal' aspect ratio.
+
+        xlabel : str
+            Common x-axis label for all subplots. X-axis labels use the 'bottom' axis.
+
+        ylabel : str
+            Common y-axis label for all subplots. Y-axis labels use the 'left' axis.
         """
         self.clear() # pyright: ignore
         self._plts = np.empty((rows, cols), dtype=object)
@@ -359,6 +383,10 @@ class PgFigure(pg.GraphicsLayoutWidget):
                 plt.setXLink(self._plts[0, 0])
             if linkY and (i + j > 0):
                 plt.setYLink(self._plts[0, 0])
+            if xlabel is not None:
+                plt.setLabel('bottom', xlabel)
+            if ylabel is not None:
+                plt.setLabel('left', ylabel)
             # TODO: if both links specified then enable across subplot mouse tracking
             self._plts[i, j] = plt
 
@@ -386,12 +414,17 @@ class PgFigure(pg.GraphicsLayoutWidget):
         self.addItem(plt, row=0, col=0) # pyright: ignore
         # TODO: for any plot other than 0,0 it seems the xlim/ylim is not retained
         self._isMaximized = True
+        self.setWindowTitle(self.windowTitle() + f"[{i},{j}]")
 
     def subplotMinimize(self):
         self.clear() # pyright:ignore
         for (i, j), plt in np.ndenumerate(self._plts):
             self.addItem(plt.base, row=i, col=j) # pyright:ignore
         self._isMaximized = False
+        # Reset the window title
+        title = self.windowTitle()
+        sidx = title.rfind('[')
+        self.setWindowTitle(title[:sidx])
 
     def mouseClicked(self, evt):
         if evt.double() and not self._isMaximized and self._plts.size > 1:
@@ -449,7 +482,7 @@ if __name__ == "__main__":
         f3.show()
 
         f4 = PgFigure()
-        f4.setPlotGrid(2,2,True,True,True)
+        f4.setPlotGrid(2,2,True,True,True,xlabel='x',ylabel='y')
         # print(f4.plt)
         f4.show()
         data = np.arange(2*2).reshape((2,2)).astype(np.float32)
