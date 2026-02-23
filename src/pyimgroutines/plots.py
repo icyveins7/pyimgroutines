@@ -212,6 +212,9 @@ class PgPlotItem:
         )
 
     def _getNearestImagePointIndex(self) -> np.ndarray | None:
+        # NOTE: cursorPos may be nan/invalid if hovering over another subplot
+        if np.all(np.isnan(self._cursorPos)):
+            return None
         offset = self._cursorPos - self._btmLeftPos
         index = offset / self._pixelSize # this is in x/y
         dataRows, dataCols = self._imgData.shape
@@ -395,7 +398,7 @@ class PgFigure(pg.GraphicsLayoutWidget):
             self._plts[i, j] = plt
 
     def keyPressEvent(self, ev):
-        plt = self[self._currPlotIndex[0], self._currPlotIndex[1]]
+        curPlt = self[self._currPlotIndex[0], self._currPlotIndex[1]]
         if ev.key() == Qt.Key.Key_V:
             # Toggle cursor mode between position and value (all plots)
             for plt in np.nditer(self.plts, ['refs_ok']):
@@ -407,7 +410,7 @@ class PgFigure(pg.GraphicsLayoutWidget):
         elif ev.key() == Qt.Key.Key_Escape and self._isMaximized:
             self.subplotMinimize()
         elif ev.key() == Qt.Key.Key_I:
-            plt._toggleImage()
+            curPlt._toggleImage()
         elif ev.key() == Qt.Key.Key_L:
             # Toggle magnetized cursor locks (all plots)
             for plt in np.nditer(self.plts, ['refs_ok']):
