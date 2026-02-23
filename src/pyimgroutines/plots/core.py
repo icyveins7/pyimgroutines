@@ -1,10 +1,14 @@
 from __future__ import annotations
 from typing import Iterable
+from PySide6.QtGui import QPen
 import pyqtgraph as pg
 import numpy as np
 from numpy import typing as npt
 from PySide6.QtCore import QPointF, Qt, QRectF
 from PySide6.QtWidgets import QApplication
+from itertools import repeat
+
+from .customitems import EllipseItem
 
 def closeAllFigs():
     QApplication.closeAllWindows()
@@ -71,6 +75,94 @@ class PgPlotItem:
     def imgData(self) -> np.ndarray:
         return self._imgData
 
+    def ellipses(
+        self,
+        xy_rxry: np.ndarray,
+        pen:  QPen | Iterable[QPen] = pg.mkPen("r")
+    ) -> EllipseItem:
+        """
+        Creates an EllipseItem and adds one or more ellipses to it,
+        then adds it to the plot.
+
+        If you need to add more ellipses later, you should directly call
+        the .addEllipse() or .addCircle() methods on the returned item.
+
+        Parameters
+        ----------
+        xy_rxry : np.ndarray
+            1D (single ellipse) or 2D (one ellipse per row) array.
+            Each ellipse is specified by the centre position (x,y)
+            followed by the radii (rx, ry).
+
+        pen : QPen | Iterable[QPen]
+            The colour of the border(s) of the ellipse(s).
+            If a single QPen is specified, it is used for all the ellipses.
+            Otherwise, each QPen is used for its matching ellipse.
+
+        Returns
+        -------
+        item : EllipseItem
+            Returned EllipseItem. Can be used directly to add more ellipses,
+            since it is already added to the plot.
+        """
+        if xy_rxry.ndim == 1:
+            xy_rxry = xy_rxry.reshape((1, 4)) # single-row 2d array
+
+        if isinstance(pen, QPen):
+            pen = repeat(pen)
+
+        # Create new item if not supplied
+        item = EllipseItem()
+        for i, (ellipse, ellipsePen) in enumerate(zip(xy_rxry, pen)):
+            item.addEllipse(
+                ellipse, ellipsePen,
+                i == len(xy_rxry) - 1 # update on last one
+            )
+        self.addItem(item)
+        return item
+
+    def circles(self, xy_r: np.ndarray, pen: QPen | Iterable[QPen]) -> EllipseItem:
+        """
+        Creates an EllipseItem and adds one or more circles to it,
+        then adds it to the plot.
+
+        If you need to add more ellipses later, you should directly call
+        the .addEllipse() or .addCircle() methods on the returned item.
+
+        Parameters
+        ----------
+        xy_r : np.ndarray
+            1D (single circle) or 2D (one circle per row) array.
+            Each circle is specified by the centre position (x,y)
+            followed by the radius (r).
+
+        pen : QPen | Iterable[QPen]
+            The colour of the border(s) of the circle(s).
+            If a single QPen is specified, it is used for all the circles.
+
+        Returns
+        -------
+        item : EllipseItem
+            Returned EllipseItem. Can be used directly to add more circles,
+            since it is already added to the plot.
+        """
+        if xy_r.ndim == 1:
+            xy_r = xy_r.reshape((1, 3)) # single-row 2d array
+
+        if isinstance(pen, QPen):
+            pen = repeat(pen)
+
+        # Create new item if not supplied
+        item = EllipseItem()
+        for i, (circle, circlePen) in enumerate(zip(xy_r, pen)):
+            item.addCircle(
+                circle, circlePen,
+                i == len(xy_r) - 1 # update on last one
+            )
+        self.addItem(item)
+        return item
+
+
     def rectangle(
         self,
         xy: tuple | list | np.ndarray,
@@ -97,6 +189,8 @@ class PgPlotItem:
         rect : pg.ROI
             Rectangle item.
         """
+        # TODO: change to create plain rectangles? maybe more lightweight than ROI
+
         # RectROI creates a non-removable scaler at the top right,
         # so we don't use it
         rect = pg.ROI(xy, wh, pen=pg.mkPen(pen), # pyright: ignore
@@ -471,8 +565,6 @@ if __name__ == "__main__":
     import sys
     closeAllFigs()
 
-    from customitems import EllipseItem # pyright: ignore
-
     if len(sys.argv) > 1:
         length = int(sys.argv[1])
         rows = length
@@ -489,12 +581,10 @@ if __name__ == "__main__":
     f.show()
 
     # try custom circles
-    ellipseItem = EllipseItem()
-    ellipseItem.addCircle(np.array([0,0,1]), pg.mkPen("r"))
-    f.plt.addItem(ellipseItem)
-    # Adding another ellipse after adding to plot should still work
-    ellipseItem.addEllipse(np.array([1,1,2,3]), pg.mkPen("b"))
-    print(ellipseItem._pos_radii)
+    ellipseItem = f.plt.ellipses(np.array([[0,0,1,1], [3,3,2,1]]))
+    ellipseItem.addEllipse(np.array([1,1,2,3]), pg.mkPen("w"))
+    circleItem = f.plt.circles(np.array([[2,2,0.1],[2,3,0.1]]), pg.mkPen("b"))
+    circleItem.addEllipse(np.array([4,4,1,1]), pg.mkPen("m"))
 
     if length <= 7:
         f2 = PgFigure()

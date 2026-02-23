@@ -9,7 +9,7 @@ class EllipseItem(pg.GraphicsObject):
         self._pos_radii = list()
         self._pens = list()
 
-    def addEllipse(self, pos_radii: np.ndarray, pen: QPen, updateNow: bool = True):
+    def addEllipse(self, pos_radii: np.ndarray, pen: QPen = pg.mkPen("r"), updateNow: bool = True):
         """
         Add an ellipse to the item.
 
@@ -25,6 +25,8 @@ class EllipseItem(pg.GraphicsObject):
             Recomputes the bounding rectangle. Set to False if adding many ellipses,
             and only set to True on the last one.
         """
+        if pos_radii.shape != (4,):
+            raise TypeError("Ellipse is expected as a length-4 array (x/y/rx/ry)")
         self._pos_radii.append(pos_radii)
         self._pens.append(pen)
         if updateNow:
@@ -33,7 +35,7 @@ class EllipseItem(pg.GraphicsObject):
             self._compute_bounds()
             self.update()
 
-    def addCircle(self, pos_radius: np.ndarray, pen: QPen, updateNow: bool = True):
+    def addCircle(self, pos_radius: np.ndarray, pen: QPen = pg.mkPen("r"), updateNow: bool = True):
         """
         Add a circle to the item.
 
@@ -49,6 +51,8 @@ class EllipseItem(pg.GraphicsObject):
             Recomputes the bounding rectangle. Set to False if adding many circles,
             and only set to True on the last one.
         """
+        if pos_radius.shape != (3,):
+            raise TypeError("Circle is expected as a length-3 array (x/y/r)")
         pos_radii = np.zeros(4, pos_radius.dtype)
         pos_radii[:3] = pos_radius
         pos_radii[3] = pos_radius[2]
