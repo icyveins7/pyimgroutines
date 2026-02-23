@@ -471,6 +471,8 @@ if __name__ == "__main__":
     import sys
     closeAllFigs()
 
+    from customitems import EllipseItem
+
     if len(sys.argv) > 1:
         length = int(sys.argv[1])
         rows = length
@@ -482,8 +484,17 @@ if __name__ == "__main__":
     x = np.arange(rows * cols).reshape((rows, cols))
     f = PgFigure()
     f.plt.image(x)
+    f.plt.setAspectLocked()
     f.plt.rectangle((-1,-1), (cols + 1, rows + 1))
     f.show()
+
+    # try custom circles
+    ellipseItem = EllipseItem()
+    ellipseItem.addCircle(np.array([0,0,1]), pg.mkPen("r"))
+    f.plt.addItem(ellipseItem)
+    # Adding another ellipse after adding to plot should still work
+    ellipseItem.addEllipse(np.array([1,1,2,3]), pg.mkPen("b"))
+    print(ellipseItem._pos_radii)
 
     if length <= 7:
         f2 = PgFigure()
