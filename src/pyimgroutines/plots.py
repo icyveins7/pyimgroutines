@@ -64,6 +64,10 @@ class PgPlotItem:
         return self._cbar
 
     @property
+    def mouseLabel(self) -> pg.TextItem:
+        return self._mouseLabel
+
+    @property
     def imgData(self) -> np.ndarray:
         return self._imgData
 
@@ -393,17 +397,21 @@ class PgFigure(pg.GraphicsLayoutWidget):
     def keyPressEvent(self, ev):
         plt = self[self._currPlotIndex[0], self._currPlotIndex[1]]
         if ev.key() == Qt.Key.Key_V:
-            # Toggle cursor mode between position and value
-            plt._rotateCursorMode()
+            # Toggle cursor mode between position and value (all plots)
+            for plt in np.nditer(self.plts, ['refs_ok']):
+                plt.item()._rotateCursorMode() # pyright: ignore
         elif ev.key() == Qt.Key.Key_C:
-            # Toggle text colour
-            plt._toggleTextColour()
+            # Toggle text colour (all plots)
+            for plt in np.nditer(self.plts, ['refs_ok']):
+                plt.item()._toggleTextColour() # pyright: ignore
         elif ev.key() == Qt.Key.Key_Escape and self._isMaximized:
             self.subplotMinimize()
         elif ev.key() == Qt.Key.Key_I:
             plt._toggleImage()
         elif ev.key() == Qt.Key.Key_L:
-            plt._toggleLockedPointing()
+            # Toggle magnetized cursor locks (all plots)
+            for plt in np.nditer(self.plts, ['refs_ok']):
+                plt.item()._toggleLockedPointing() # pyright: ignore
         return super().keyPressEvent(ev)
 
     def subplotMaximize(self):
@@ -441,9 +449,18 @@ class PgFigure(pg.GraphicsLayoutWidget):
                     coords = plt.vb.mapSceneToView(evt) # pyright: ignore
                     # Cache internal cursor position
                     plt._setCursorPositionInPlot(coords)
+                    plt.mouseLabel.show()
                     # Update text and position
                     plt._setMouseLabelTextAndPos()
+                    # Hide cursors for other plots
+                    self._hideInactivePlotCursors()
+
                     return
+
+    def _hideInactivePlotCursors(self):
+        for index, plt in np.ndenumerate(self.plts):
+            if not np.all(index == self._currPlotIndex):
+                plt.mouseLabel.hide()
 
 
 
