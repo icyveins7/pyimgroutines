@@ -1,7 +1,6 @@
 from PySide6.QtGui import QPainter, QPen
 import pyqtgraph as pg
 from PySide6.QtCore import QRectF
-from PySide6 import QtGui
 import numpy as np
 
 class EllipseItem(pg.GraphicsObject):
@@ -10,7 +9,7 @@ class EllipseItem(pg.GraphicsObject):
         self._pos_radii = list()
         self._pens = list()
 
-    def addEllipse(self, pos_radii: np.ndarray, pen: QPen):
+    def addEllipse(self, pos_radii: np.ndarray, pen: QPen, updateNow: bool = True):
         """
         Add an ellipse to the item.
 
@@ -21,15 +20,20 @@ class EllipseItem(pg.GraphicsObject):
 
         pen : QPen
             Style of the border.
+
+        updateNow : bool
+            Recomputes the bounding rectangle. Set to False if adding many ellipses,
+            and only set to True on the last one.
         """
         self._pos_radii.append(pos_radii)
         self._pens.append(pen)
-        # Eager updates
-        self.prepareGeometryChange()
-        self._compute_bounds()
-        self.update()
+        if updateNow:
+            # Eager updates
+            self.prepareGeometryChange()
+            self._compute_bounds()
+            self.update()
 
-    def addCircle(self, pos_radius: np.ndarray, pen: QPen):
+    def addCircle(self, pos_radius: np.ndarray, pen: QPen, updateNow: bool = True):
         """
         Add a circle to the item.
 
@@ -40,11 +44,15 @@ class EllipseItem(pg.GraphicsObject):
 
         pen : QPen
             Style of the border.
+
+        updateNow : bool
+            Recomputes the bounding rectangle. Set to False if adding many circles,
+            and only set to True on the last one.
         """
         pos_radii = np.zeros(4, pos_radius.dtype)
         pos_radii[:3] = pos_radius
         pos_radii[3] = pos_radius[2]
-        self.addEllipse(pos_radii, pen)
+        self.addEllipse(pos_radii, pen, updateNow)
 
     def _compute_bounds(self):
         all_pos_radii = np.vstack(self._pos_radii)
@@ -53,7 +61,6 @@ class EllipseItem(pg.GraphicsObject):
         maxx = np.max(all_pos_radii[:,0] + all_pos_radii[:,2])
         maxy = np.max(all_pos_radii[:,1] + all_pos_radii[:,3])
         self._rect = QRectF(minx, miny, maxx-minx, maxy-miny)
-        print(self._rect)
 
     def boundingRect(self) -> QRectF:
         return self._rect
@@ -74,3 +81,16 @@ class EllipseItem(pg.GraphicsObject):
             p.setPen(pen)
             p.drawEllipse(self._compute_rect(ellipse))
 
+if __name__ == "__main__":
+    from pyimgroutines.plots import PgFigure
+
+    count = 100
+    f = PgFigure(title=f"{count**2} circles")
+    item = EllipseItem()
+    for i in range(count):
+        for j in range(count):
+            item.addCircle(np.array([i,j,0.5]), pg.mkPen("r"),
+                           (i == count-1 and j == count-1))
+    f.plt.addItem(item)
+    f.plt.setAspectLocked()
+    f.show()
