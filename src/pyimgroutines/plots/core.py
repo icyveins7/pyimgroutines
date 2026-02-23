@@ -471,7 +471,7 @@ if __name__ == "__main__":
     import sys
     closeAllFigs()
 
-    from customitems import EllipseItem
+    from customitems import EllipseItem # pyright: ignore
 
     if len(sys.argv) > 1:
         length = int(sys.argv[1])

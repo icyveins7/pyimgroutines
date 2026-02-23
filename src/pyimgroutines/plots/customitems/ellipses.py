@@ -11,7 +11,17 @@ class EllipseItem(pg.GraphicsObject):
         self._pens = list()
 
     def addEllipse(self, pos_radii: np.ndarray, pen: QPen):
-        # [x, y, rad_x, rad_y]
+        """
+        Add an ellipse to the item.
+
+        Parameters
+        ----------
+        pos_radii : np.ndarray
+            [x_centre, y_centre, x_radius, y_radius]
+
+        pen : QPen
+            Style of the border.
+        """
         self._pos_radii.append(pos_radii)
         self._pens.append(pen)
         # Eager updates
@@ -20,6 +30,17 @@ class EllipseItem(pg.GraphicsObject):
         self.update()
 
     def addCircle(self, pos_radius: np.ndarray, pen: QPen):
+        """
+        Add a circle to the item.
+
+        Parameters
+        ----------
+        pos_radius : np.ndarray
+            [x_centre, y_centre, radius]
+
+        pen : QPen
+            Style of the border.
+        """
         pos_radii = np.zeros(4, pos_radius.dtype)
         pos_radii[:3] = pos_radius
         pos_radii[3] = pos_radius[2]
@@ -47,10 +68,9 @@ class EllipseItem(pg.GraphicsObject):
         )
         return rect
 
-    def paint(self, p: QtGui.QPainter, opt, widget=None):
+    def paint(self, p: QPainter, opt, widget=None):
         p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         for ellipse, pen in zip(self._pos_radii, self._pens):
-            # Create the rectangle
             p.setPen(pen)
             p.drawEllipse(self._compute_rect(ellipse))
 
