@@ -1,6 +1,6 @@
 [project]
 name = "pyimgroutines"
-version = "0.1.0"
+version = "0.1.1"
 description = ""
 authors = [
     {name = "icyveins7",email = "icyveins@hotmail.com"}
