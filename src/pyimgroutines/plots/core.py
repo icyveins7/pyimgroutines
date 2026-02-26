@@ -8,6 +8,7 @@ from PySide6.QtCore import QPointF, Qt, QRectF
 from PySide6.QtWidgets import QApplication
 from itertools import repeat
 
+from ._keybuffer import KeyBufferCoordinates
 from .customitems import EllipseItem
 
 def closeAllFigs():
@@ -408,6 +409,9 @@ class PgFigure(pg.GraphicsLayoutWidget):
 
         self._isMaximized = False
 
+        self._keybuffer = KeyBufferCoordinates()
+        print(self._keybuffer.acceptedKeys)
+
     def _getFigureIndex(self) -> int:
         index = PgFigure.FIGURE_INDEX
         # Increment static var for next figure
@@ -493,6 +497,11 @@ class PgFigure(pg.GraphicsLayoutWidget):
 
     def keyPressEvent(self, ev):
         curPlt = self[self._currPlotIndex[0], self._currPlotIndex[1]]
+
+        key = self._keybuffer.parseKey(ev.key())
+        if key is None:
+            return
+
         if ev.key() == Qt.Key.Key_V:
             # Toggle cursor mode between position and value (all plots)
             for plt in np.nditer(self.plts, ['refs_ok']):
@@ -509,6 +518,10 @@ class PgFigure(pg.GraphicsLayoutWidget):
             # Toggle magnetized cursor locks (all plots)
             for plt in np.nditer(self.plts, ['refs_ok']):
                 plt.item()._toggleLockedPointing() # pyright: ignore
+        elif ev.key() == Qt.Key.Key_G:
+            coords = self._keybuffer.flushCoordinates()
+            print(coords)
+
         return super().keyPressEvent(ev)
 
     def subplotMaximize(self):
