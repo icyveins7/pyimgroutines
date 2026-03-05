@@ -37,6 +37,7 @@ class KeyBufferCoordinates(KeyBuffer):
         super().__init__([
             Qt.Key.Key_Comma,
             Qt.Key.Key_Period,
+            Qt.Key.Key_Colon, # support ranges
             Qt.Key.Key_0,
             Qt.Key.Key_1,
             Qt.Key.Key_2,
@@ -49,18 +50,38 @@ class KeyBufferCoordinates(KeyBuffer):
             Qt.Key.Key_9,
         ])
 
-    def flushCoordinates(self) -> tuple[float|None, float|None]:
+    def flushCoordinates(self) -> tuple[tuple[float,float]|float|None, tuple[float,float]|float|None]:
         coordx = None
         coordy = None
         coordString = self.flushString()
         splitcoordString = coordString.split(",")
+        # Expect x,y
         if len(splitcoordString) != 2:
             # Invalid coords
             return np.nan, np.nan
         else:
-            coordx, coordy = splitcoordString
-            coordx = float(coordx) if len(coordx) > 0 else None
-            coordy = float(coordy) if len(coordy) > 0 else None
+            strcoordx, strcoordy = splitcoordString
+            coordx = self._processCoordinate(strcoordx)
+            coordy = self._processCoordinate(strcoordy)
         return coordx, coordy
+
+    def _processCoordinate(self, coordString: str) -> None | float | tuple[float, float]:
+        # Check if it's empty
+        if len(coordString) == 0:
+            return None
+
+        # Check if it's a range (:)
+        rangeString = coordString.split(":")
+        if len(rangeString) == 2:
+            return float(rangeString[0]), float(rangeString[1])
+
+        # Or a point
+        elif len(rangeString) == 1:
+            return float(rangeString[0])
+
+        # Otherwise invalid
+        else:
+            return np.nan
+
 
 

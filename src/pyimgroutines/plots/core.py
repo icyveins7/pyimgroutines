@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Iterable
+from typing import Iterable, Protocol
 from PySide6.QtGui import QPen
 import pyqtgraph as pg
 import numpy as np
@@ -75,6 +75,42 @@ class PgPlotItem:
     @property
     def imgData(self) -> np.ndarray:
         return self._imgData
+
+    def zoomTo(
+        self,
+        pos: tuple[tuple[float,float]|float|None, tuple[float,float]|float|None]
+    ):
+        # TODO: add docstring
+        # NOTE: with aspectLocked, this automatically scales to maintain
+        # equal aspect ratio, so it may not exactly respect ranges
+        # TODO: ideally for both x/y should support
+        # None -> use old range exactly
+        # A -> centre around A, maintain old span i.e. A +/- span/2
+        # A:B -> directly set range using this
+        # A: -> set range from A to upper limit of image bbox
+        # :B -> set range from lower limit of image bbox to B
+        # : -> exactly enclose image bbox for this coordinate
+
+        # Get the current span
+        viewRange = self.viewRange()
+        finalRanges = list()
+
+        for p, curRange in zip(pos, viewRange):
+            # If the type is a tuple, we use it directly
+            if isinstance(p, tuple):
+                finalRanges.append(p)
+            # If type is float, we maintain the current span
+            elif isinstance(p, float):
+                span = curRange[1] - curRange[0]
+                finalRanges.append((p-span/2, p+span/2))
+            # If None, don't change current range
+            elif p is None:
+                finalRanges.append(curRange)
+
+        # print(finalRanges)
+        self.setRange(xRange=finalRanges[0],
+                      yRange=finalRanges[1],
+                      padding=0)
 
     def ellipses(
         self,
@@ -410,7 +446,6 @@ class PgFigure(pg.GraphicsLayoutWidget):
         self._isMaximized = False
 
         self._keybuffer = KeyBufferCoordinates()
-        print(self._keybuffer.acceptedKeys)
 
     def _getFigureIndex(self) -> int:
         index = PgFigure.FIGURE_INDEX
@@ -520,7 +555,9 @@ class PgFigure(pg.GraphicsLayoutWidget):
                 plt.item()._toggleLockedPointing() # pyright: ignore
         elif ev.key() == Qt.Key.Key_G:
             coords = self._keybuffer.flushCoordinates()
-            print(coords)
+            # print(coords)
+            curPlt.zoomTo(coords)
+
 
         return super().keyPressEvent(ev)
 
