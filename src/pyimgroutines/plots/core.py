@@ -5,7 +5,7 @@ import pyqtgraph as pg
 import numpy as np
 from numpy import typing as npt
 from PySide6.QtCore import QPointF, Qt, QRectF
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QMessageBox
 from itertools import repeat
 
 from ._keybuffer import KeyBufferCoordinates
@@ -314,7 +314,11 @@ class PgPlotItem:
         self._im.setLookupTable(cm2use.getLookupTable()) # pyright: ignore
 
         if colorbar:
-            self._cbar = self.addColorBar(self._im, colorMap=cm2use)
+            self._cbar = self.addColorBar(
+                self._im,
+                colorMap=cm2use,
+                interactive=False # default false because large images will lag
+            )
 
         self.addItem(self._im)
 
@@ -558,8 +562,21 @@ class PgFigure(pg.GraphicsLayoutWidget):
             # print(coords)
             curPlt.zoomTo(coords)
 
+        elif ev.key() == Qt.Key.Key_H:
+            helpbox = self._makeHelpDialog()
+            helpbox.exec()
 
         return super().keyPressEvent(ev)
+
+    def _makeHelpDialog(self):
+        helpbox = QMessageBox()
+        helpbox.setWindowTitle("Hotkeys")
+        helpText = """
+h: Show this help window
+v: Rotate cursor's text modes (position / data / none)
+"""
+        helpbox.setText(helpText)
+        return helpbox
 
     def subplotMaximize(self):
         i, j = self._currPlotIndex
