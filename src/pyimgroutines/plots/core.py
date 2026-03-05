@@ -606,7 +606,8 @@ class PgFigure(pg.GraphicsLayoutWidget):
 
     def _hideInactivePlotCursors(self):
         for index, plt in np.ndenumerate(self.plts):
-            if not np.all(index == self._currPlotIndex):
+            # Match everything except current plot
+            if not np.array_equal(index, self._currPlotIndex):
                 plt.mouseLabel.hide()
 
 
