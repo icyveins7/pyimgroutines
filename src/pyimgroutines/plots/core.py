@@ -361,7 +361,10 @@ class PgPlotItem:
         index = self._getNearestImagePointIndex()
         if index is None:
             return None, None
-        bottomLeftPointerPos = self._btmLeftPos + self._pixelSize * 0.5 * self._addHalfPixelBorder
+        if self._addHalfPixelBorder:
+            bottomLeftPointerPos = self._btmLeftPos + self._pixelSize * 0.5
+        else:
+            bottomLeftPointerPos = self._btmLeftPos
         return index * self._pixelSize + bottomLeftPointerPos, index
 
     def _setMouseLabelTextAndPos(self):

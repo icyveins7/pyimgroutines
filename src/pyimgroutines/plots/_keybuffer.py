@@ -33,11 +33,12 @@ class KeyBuffer:
 
 class KeyBufferCoordinates(KeyBuffer):
     def __init__(self):
-        # Accept comma, period, all digits
+        # Accept comma, period, minus, all digits
         super().__init__([
             Qt.Key.Key_Comma,
             Qt.Key.Key_Period,
             Qt.Key.Key_Colon, # support ranges
+            Qt.Key.Key_Minus, # support negative numbers
             Qt.Key.Key_0,
             Qt.Key.Key_1,
             Qt.Key.Key_2,
