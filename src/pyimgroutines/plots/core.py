@@ -481,7 +481,11 @@ class PgFigure(pg.GraphicsLayoutWidget):
 
     @property
     def plts(self) -> np.ndarray:
-        """Returns all subplots."""
+        """
+        Returns all subplots.
+        To do a simple iteration over all of them, use np.nditer(..., ['refs_ok'])
+        and then use .item() to get the object (the PgPlotItem).
+        """
         return self._plts
 
     def setPlotGrid(
@@ -684,7 +688,5 @@ if __name__ == "__main__":
             plt.image(datac)
             plt.cbar.setLevels((1,2))
 
-
-    # if os.name == "nt":
-    #     forceShow()
+    forceShow()
 
