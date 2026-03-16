@@ -38,7 +38,7 @@ class PgAnimation(PgFigure):
 if __name__ == "__main__":
     fig = PgAnimation()
     fig.setPlotGrid(1, 2)
-    import numpy as np
+    import scipy as sp
     from .core import forceShow
 
     class CircleAnimation(ScatterAnimation):
@@ -70,11 +70,26 @@ if __name__ == "__main__":
     fig[0,0].disableAutoRange(axis=pg.ViewBox.XYAxes)
     fig[0,0].setAspectLocked()
     fig[0,0].circles(np.array([0,0,1]), pg.mkPen("r"))
+    # Overlay a simple image?
+    img = np.arange(512*512).reshape(512, 512)
+    fig[0,0].image(img, [-1,-1,2,2])
 
     fig[0,1].addItem(PolarCoordsAnimation())
     fig[0,1].disableAutoRange(axis=pg.ViewBox.XYAxes)
     fig[0,1].setYRange(-0.1, 1.1)
     fig[0,1].setXRange(-0.1, 2*np.pi+0.1)
+    # Show equivalent remapped image
+    x = np.linspace(-1, 1, 512)
+    y = np.linspace(-1, 1, 512)
+    interpolator = sp.interpolate.RegularGridInterpolator((x, y), img)
+    r, theta = np.meshgrid(np.linspace(0,1,512), np.linspace(0,2*np.pi,512))
+    xi = r * np.cos(theta)
+    yi = r * np.sin(theta)
+    pts = np.array([xi.flatten(), yi.flatten()]).T
+    rimg = interpolator(pts)
+    rimg = rimg.reshape(512, 512).T
+    fig[0,1].image(rimg, [0,0,2*np.pi,1])
+
     fig.show()
     fig.animate(fps=60)
 
