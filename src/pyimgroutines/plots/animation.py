@@ -2,7 +2,7 @@ from .core import PgFigure
 
 import numpy as np
 
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QTimer, Qt
 
 import pyqtgraph as pg
 
@@ -15,25 +15,46 @@ class PgAnimation(PgFigure):
         super().__init__(*args, **kwargs)
         self._animationFrame = 0
         self._animationTimer = QTimer()
+        self._fps = 60
+        self._animationTimer.timeout.connect(self._updateAnimations)
 
-    def _updateAnimations(self, fps: int):
+    @property
+    def fps(self) -> int:
+        return self._fps
+
+    @fps.setter
+    def fps(self, value: int):
+        self._fps = value
+
+    def _updateItemAnimations(self):
         for plt in np.nditer(self.plts, ['refs_ok']):
             for dataItem in plt.item().listDataItems(): # pyright: ignore
                 if isinstance(dataItem, ScatterAnimation):
-                    x, y = dataItem.at(self._animationFrame, fps=fps)
+                    x, y = dataItem.at(self._animationFrame, fps=self._fps)
                     # print(x, y)
                     dataItem.setData(x=x, y=y)
 
+    def _updateAnimations(self):
+        self._updateItemAnimations()
         self._animationFrame += 1
         # print(self._animationFrame)
 
-    def animate(self, fps: int = 60):
-        # NOTE: fps is an estimate, since the timer uses integer milliseconds
-        self._animationFrame = 0 # reset
-        self._animationTimer.timeout.connect(
-            lambda: self._updateAnimations(fps)
-        )
-        self._animationTimer.start(int(1000.0 / fps)) # milliseconds
+    def resetAnimation(self):
+        self._animationFrame = 0
+        self._updateItemAnimations()
+
+    def toggleAnimate(self):
+        if self._animationTimer.isActive():
+            self._animationTimer.stop()
+        else:
+            self._animationTimer.start(int(1000.0 / self._fps)) # milliseconds
+
+    def keyPressEvent(self, ev):
+        if ev.key() == Qt.Key.Key_Space:
+            self.toggleAnimate()
+        elif ev.key() == Qt.Key.Key_Backspace:
+            self.resetAnimation()
+        return super().keyPressEvent(ev)
 
 if __name__ == "__main__":
     fig = PgAnimation()
@@ -91,7 +112,7 @@ if __name__ == "__main__":
     fig[0,1].image(rimg, [0,0,2*np.pi,1])
 
     fig.show()
-    fig.animate(fps=60)
+    fig.fps = 60
 
     forceShow()
 
