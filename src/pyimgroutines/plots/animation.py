@@ -28,6 +28,7 @@ class PgAnimation(PgFigure):
         # print(self._animationFrame)
 
     def animate(self, fps: int = 60):
+        # NOTE: fps is an estimate, since the timer uses integer milliseconds
         self._animationFrame = 0 # reset
         self._animationTimer.timeout.connect(
             lambda: self._updateAnimations(fps)
@@ -36,6 +37,7 @@ class PgAnimation(PgFigure):
 
 if __name__ == "__main__":
     fig = PgAnimation()
+    fig.setPlotGrid(1, 2)
     import numpy as np
     from .core import forceShow
 
@@ -45,15 +47,34 @@ if __name__ == "__main__":
 
     class SpiralAnimation(ScatterAnimation):
         def at(self, frame: int, fps: int = 60):
-            return np.array([np.cos(frame / (fps/2))]), np.array([np.sin(frame / (fps/2))])
+            frame = frame % 1000
+            speed = 0.5
+            r = frame / 1000
+            theta = frame / (2 * np.pi) * speed
+            return np.array([r * np.cos(theta)]), np.array([r * np.sin(theta)])
+
+    class PolarCoordsAnimation(ScatterAnimation):
+        def at(self, frame: int, fps: int = 60):
+            frame = frame % 1000
+            speed = 0.5
+            r = frame / 1000
+            theta = frame / (2 * np.pi) * speed
+            theta = np.remainder(theta, 2*np.pi)
+            return np.array([theta]), np.array([r])
 
 
-    fig.plt.addItem(CircleAnimation([0], [1]))
-    fig.plt.setXRange(-1.1, 1.1)
-    fig.plt.setYRange(-1.1, 1.1)
-    fig.plt.disableAutoRange(axis=pg.ViewBox.XYAxes)
-    fig.plt.setAspectLocked()
-    fig.plt.circles(np.array([0,0,1]), pg.mkPen("r"))
+    fig[0,0].addItem(CircleAnimation([0], [1]))
+    fig[0,0].addItem(SpiralAnimation([0], [0]))
+    fig[0,0].setXRange(-1.1, 1.1)
+    fig[0,0].setYRange(-1.1, 1.1)
+    fig[0,0].disableAutoRange(axis=pg.ViewBox.XYAxes)
+    fig[0,0].setAspectLocked()
+    fig[0,0].circles(np.array([0,0,1]), pg.mkPen("r"))
+
+    fig[0,1].addItem(PolarCoordsAnimation())
+    fig[0,1].disableAutoRange(axis=pg.ViewBox.XYAxes)
+    fig[0,1].setYRange(-0.1, 1.1)
+    fig[0,1].setXRange(-0.1, 2*np.pi+0.1)
     fig.show()
     fig.animate(fps=60)
 
