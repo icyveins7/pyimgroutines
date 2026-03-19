@@ -50,6 +50,20 @@ class KeyBufferCoordinates(KeyBuffer):
             Qt.Key.Key_8,
             Qt.Key.Key_9,
         ])
+        # Primarily a flag to indicate if the buffer is frozen
+        self._frozen = False
+
+    @property
+    def frozen(self) -> bool:
+        return self._frozen
+
+    def freeze(self):
+        """Freeze the buffer. Use this to help internally mark that the buffer's contents is to be used next."""
+        self._frozen = True
+
+    def unfreeze(self):
+        """Unfreeze the buffer."""
+        self._frozen = False
 
     def flushCoordinates(self) -> tuple[tuple[float,float]|float|None, tuple[float,float]|float|None]:
         coordx = None

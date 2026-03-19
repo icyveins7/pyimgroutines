@@ -548,7 +548,20 @@ class PgFigure(pg.GraphicsLayoutWidget):
         if key is None:
             return
 
-        if ev.key() == Qt.Key.Key_V:
+        # Check if buffer is frozen first (G-commands)
+        if self._keybuffer.frozen:
+            # G - G
+            if ev.key() == Qt.Key.Key_G:
+                # GG: zoom to coordinates
+                coords = self._keybuffer.flushCoordinates()
+                curPlt.zoomTo(coords)
+            # Always unfreeze at the end
+            self._keybuffer.unfreeze()
+        # Normal key handling (not frozen)
+        elif ev.key() == Qt.Key.Key_G:
+            # First G: freeze the buffer, wait for next key
+            self._keybuffer.freeze()
+        elif ev.key() == Qt.Key.Key_V:
             # Toggle cursor mode between position and value (all plots)
             for plt in np.nditer(self.plts, ['refs_ok']):
                 plt.item()._rotateCursorMode() # pyright: ignore
@@ -564,11 +577,6 @@ class PgFigure(pg.GraphicsLayoutWidget):
             # Toggle magnetized cursor locks (all plots)
             for plt in np.nditer(self.plts, ['refs_ok']):
                 plt.item()._toggleLockedPointing() # pyright: ignore
-        elif ev.key() == Qt.Key.Key_G:
-            coords = self._keybuffer.flushCoordinates()
-            # print(coords)
-            curPlt.zoomTo(coords)
-
         elif ev.key() == Qt.Key.Key_H:
             helpbox = self._makeHelpDialog()
             helpbox.exec()
@@ -581,6 +589,7 @@ class PgFigure(pg.GraphicsLayoutWidget):
         helpText = """
 h: Show this help window
 v: Rotate cursor's text modes (position / data / none)
+l: Toggle magnetized cursor locks
 """
         helpbox.setText(helpText)
         return helpbox
