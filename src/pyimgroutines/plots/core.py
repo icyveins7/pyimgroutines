@@ -550,11 +550,17 @@ class PgFigure(pg.GraphicsLayoutWidget):
 
         # Check if buffer is frozen first (G-commands)
         if self._keybuffer.frozen:
-            # G - G
+            # GG: go/zoom to coordinates
             if ev.key() == Qt.Key.Key_G:
-                # GG: zoom to coordinates
                 coords = self._keybuffer.flushCoordinates()
                 curPlt.zoomTo(coords)
+            # GC: change the colorbar range
+            elif ev.key() == Qt.Key.Key_C:
+                lower, upper = self._keybuffer.flushRange()
+                origLower, origUpper = curPlt.cbar.levels()
+                lower = origLower if lower is None else lower
+                upper = origUpper if upper is None else upper
+                curPlt.cbar.setLevels((lower, upper))
             # Always unfreeze at the end
             self._keybuffer.unfreeze()
         # Normal key handling (not frozen)

@@ -39,6 +39,9 @@ class KeyBufferCoordinates(KeyBuffer):
             Qt.Key.Key_Period,
             Qt.Key.Key_Colon, # support ranges
             Qt.Key.Key_Minus, # support negative numbers
+            Qt.Key.Key_Less,
+            Qt.Key.Key_Greater,
+            Qt.Key.Key_Equal,
             Qt.Key.Key_0,
             Qt.Key.Key_1,
             Qt.Key.Key_2,
@@ -64,6 +67,13 @@ class KeyBufferCoordinates(KeyBuffer):
     def unfreeze(self):
         """Unfreeze the buffer."""
         self._frozen = False
+
+    def flushRange(self) -> tuple[float, float] | None:
+        rangeString = self.flushString()
+        lowerStr, upperStr = rangeString.split(":")
+        lower = None if len(lowerStr) == 0 else float(lowerStr)
+        upper = None if len(upperStr) == 0 else float(upperStr)
+        return lower, upper
 
     def flushCoordinates(self) -> tuple[tuple[float,float]|float|None, tuple[float,float]|float|None]:
         coordx = None
