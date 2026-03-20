@@ -5,7 +5,7 @@ import pyqtgraph as pg
 import numpy as np
 from numpy import typing as npt
 from PySide6.QtCore import QPointF, Qt, QRectF
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtWidgets import QApplication, QMessageBox, QMainWindow
 from itertools import repeat
 
 from ._keybuffer import KeyBufferCoordinates
@@ -410,9 +410,9 @@ class PgPlotItem:
         self._setMouseLabelTextAndPos()
 
 
-class PgFigure(pg.GraphicsLayoutWidget):
+class PgFigure(QMainWindow):
     """
-    A pyqtgraph 'figure', built on a subclass around a GraphicsLayoutWidget,
+    A pyqtgraph 'figure', built on a QMainWindow containing a GraphicsLayoutWidget,
     and internal PgPlotItems, which are subclasses around pg.PlotItem.
 
     General use-case is to create this, and then use .setPlotGrid() if multiple subplots are required,
@@ -433,6 +433,7 @@ class PgFigure(pg.GraphicsLayoutWidget):
         - In-built cursor tracking (Hotkey V to toggle modes)
         - In-built subplot minimization/maximization (Double-click/Esc)
         - In-built pixel magnetization (Hotkey L)
+        - Status bar for displaying information
     """
     FIGURE_INDEX = 1
 
@@ -442,10 +443,19 @@ class PgFigure(pg.GraphicsLayoutWidget):
 
         All input arguments are passed to pg.GraphicsLayoutWidget().
         """
+        # Ensure QApplication exists before creating any widgets
+        # TODO: check if there's a better way rather than always making a QApp?
+        pg.mkQApp()
+
         self._figIndex = self._getFigureIndex()
-        if "title" not in kwargs:
-            kwargs["title"] = f"PgFigure_{self._figIndex}"
-        super().__init__(*args, **kwargs)
+        title = kwargs.pop("title", f"PgFigure_{self._figIndex}")
+        super().__init__()
+        self.setWindowTitle(title)
+
+        # Create the graphics widget and set as central widget
+        self._graphicsWidget = pg.GraphicsLayoutWidget(*args, **kwargs)
+        self.setCentralWidget(self._graphicsWidget)
+
         self._plts = np.empty((0, 0), dtype=PgPlotItem)
         self._currPlotIndex = np.array([0, 0], dtype=np.uint8)
         self.setPlotGrid(1, 1) # Default to having a single plot
@@ -453,6 +463,18 @@ class PgFigure(pg.GraphicsLayoutWidget):
         self._isMaximized = False
 
         self._keybuffer = KeyBufferCoordinates()
+
+    # Forward unknown attributes to the graphics widget
+    def __getattr__(self, name):
+        # Avoid infinite recursion during init
+        if '_graphicsWidget' not in self.__dict__:
+            raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+        return getattr(self._graphicsWidget, name)
+
+    @property
+    def graphicsWidget(self) -> pg.GraphicsLayoutWidget:
+        """Return the underlying GraphicsLayoutWidget."""
+        return self._graphicsWidget
 
     def _getFigureIndex(self) -> int:
         index = PgFigure.FIGURE_INDEX
@@ -586,6 +608,9 @@ class PgFigure(pg.GraphicsLayoutWidget):
         elif ev.key() == Qt.Key.Key_H:
             helpbox = self._makeHelpDialog()
             helpbox.exec()
+        elif ev.key() == Qt.Key.Key_B:
+            # Toggle status bar visibility
+            self.statusBar().setVisible(not self.statusBar().isVisible())
 
         return super().keyPressEvent(ev)
 
@@ -596,6 +621,7 @@ class PgFigure(pg.GraphicsLayoutWidget):
 h: Show this help window
 v: Rotate cursor's text modes (position / data / none)
 l: Toggle magnetized cursor locks
+b: Toggle status bar
 """
         helpbox.setText(helpText)
         return helpbox
