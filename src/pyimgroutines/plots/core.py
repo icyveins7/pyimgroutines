@@ -23,10 +23,14 @@ def forceShow():
     app = pg.mkQApp()
     app.exec()
 
-# Wrapper around default PlotItem with extra references
 class PgPlotItem:
+    """
+    A wrapper around default PlotItem with extra references.
+    This is primarily to aid in image-related functionality.
+    """
     trackingDtype = np.float64
 
+    # Constants used for cursor tracking modes
     CURSOR_SHOW_NONE = 0
     CURSOR_SHOW_POS = 1
     CURSOR_SHOW_VALUE = 2
@@ -46,6 +50,7 @@ class PgPlotItem:
         self._cbar = pg.ColorBarItem()
         self._lockedPointing = False
         self._addHalfPixelBorder = False
+        self._roi = None
 
     # Forward everything unknown to the original PlotItem
     def __getattr__(self, name):
@@ -329,6 +334,9 @@ class PgPlotItem:
         self._parent.scene().sigMouseMoved.connect(self._parent.mouseMoved) # pyright: ignore
         self._parent.scene().sigMouseClicked.connect(self._parent.mouseClicked) # pyright: ignore
 
+        # Disable auto-range, tends to be buggy/annoying/enter loops
+        self.disableAutoRange(pg.ViewBox.XYAxes)
+
     def _rotateCursorMode(self):
         self._cursorMode = (self._cursorMode + 1) % 3
         self._setMouseLabelTextAndPos()
@@ -406,6 +414,36 @@ class PgPlotItem:
         self._lockedPointing = not self._lockedPointing
         # Re-render the text labels
         self._setMouseLabelTextAndPos()
+
+    def _toggleROI(self):
+        if self._roi is not None:
+            self.removeItem(self._roi)
+            self._roi = None
+        else:
+            # If there's an image, use ROI
+            if self._im is not None:
+                viewrangeX, viewrangeY = self.viewRange()
+                centre = np.array([
+                    0.5*(viewrangeX[0]+viewrangeX[1]), 0.5*(viewrangeY[0]+viewrangeY[1])
+                ])
+                wh = np.array([
+                    (viewrangeX[1]-viewrangeX[0])/2, (viewrangeY[1]-viewrangeY[0])/2])
+                self._roi = pg.ROI(centre-wh/2, wh, # pyright:ignore
+                                   movable=True,
+                                   rotatable=False,
+                                   resizable=True,
+                                   pen=pg.mkPen('k'),
+                                   hoverPen=pg.mkPen((150,150,150)))
+                self._roi.addScaleHandle(
+                    (1, 0),
+                    (0.5, 0.5)
+                )
+
+            else:
+                # Otherwise, use LinearRegionItem
+                self._roi = pg.LinearRegionItem()
+
+            self.addItem(self._roi)
 
 
 class PgFigure(QMainWindow):
@@ -609,6 +647,9 @@ class PgFigure(QMainWindow):
         elif ev.key() == Qt.Key.Key_B:
             # Toggle status bar visibility
             self.statusBar().setVisible(not self.statusBar().isVisible())
+        elif ev.key() == Qt.Key.Key_R:
+            # Toggle ROI
+            curPlt._toggleROI() # pyright: ignore
 
         return super().keyPressEvent(ev)
 
@@ -620,6 +661,7 @@ h: Show this help window
 v: Rotate cursor's text modes (position / data / none)
 l: Toggle magnetized cursor locks
 b: Toggle status bar
+r: Toggle ROI
 """
         helpbox.setText(helpText)
         return helpbox
