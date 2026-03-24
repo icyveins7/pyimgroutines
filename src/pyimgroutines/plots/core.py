@@ -59,9 +59,7 @@ class PgPlotItem:
         return self._plotItem
 
     @property
-    def im(self) -> pg.ImageItem:
-        if self._im is None:
-            raise TypeError("No image item created yet")
+    def im(self) -> pg.ImageItem | None:
         return self._im
 
     @property
@@ -654,6 +652,10 @@ b: Toggle status bar
         for i in range(self._plts.shape[0]):
             for j in range(self._plts.shape[1]):
                 plt = self._plts[i,j]
+                if plt.im is None:
+                    continue
+                # TODO: eventually allow mouse cursor updates only for coordinates
+                # if no image is present?
                 if plt.sceneBoundingRect().contains(evt): # pyright: ignore
                     # Cache that this is the currently hovered plot
                     self._currPlotIndex[:] = [i, j]
