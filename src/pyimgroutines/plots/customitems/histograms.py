@@ -1,8 +1,9 @@
 import pyqtgraph as pg
 import numpy as np
+from ..core import PgPlotItem
 
 class HistogramItem(pg.BarGraphItem):
-    def __init__(self, counts: np.ndarray, edges: np.ndarray, **kwargs):
+    def __init__(self, counts: np.ndarray | None = None, edges: np.ndarray | None = None, **kwargs):
         """
         A histogram item that can be added to a plot.
         Meant to work easily with np.histogram;
@@ -19,13 +20,13 @@ class HistogramItem(pg.BarGraphItem):
         edges : np.ndarray
             The edges of the histogram.
         """
-        self._counts = counts
-        self._edges = edges
+        self._counts = counts if counts is not None else np.array([0])
+        self._edges = edges if edges is not None else np.array([0, 0])  
         width = self.calcWidth(self._edges)
         super().__init__(
-            x0=edges[:-1],
-            x1=edges[1:],
-            height=counts,
+            x0=self._edges[:-1],
+            x1=self._edges[1:],
+            height=self._counts,
             width=width,
             **kwargs
         )
@@ -44,6 +45,13 @@ class HistogramItem(pg.BarGraphItem):
         counts, edges = np.histogram(*args, **kwargs)
         return cls(counts, edges)
 
+    def updateBins(self, data: np.ndarray):
+        # TODO: allow outside setting of bins
+        counts, edges = np.histogram(data)
+        self.setOpts(x0=edges[:-1], x1=edges[1:], height=counts, width=self.calcWidth(edges))
+
+    def linkToImagePlot(self, plt: PgPlotItem):
+        plt.sigROIselectionChangeFinished.connect(self.updateBins)
 
 
 if __name__ == "__main__":
@@ -55,5 +63,10 @@ if __name__ == "__main__":
     hist = HistogramItem.fromData(x)
     fig[1,0].addItem(hist)
     hist.setOpts(pen=pg.mkPen("k"), brush=pg.mkBrush("r"))
+
+    dynhist = HistogramItem()
+    dynhist.linkToImagePlot(fig[0,0])
+    fig[1,0].addItem(dynhist)
+
     fig.show()
     forceShow()

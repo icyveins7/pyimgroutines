@@ -4,7 +4,7 @@ from PySide6.QtGui import QPen
 import pyqtgraph as pg
 import numpy as np
 from numpy import typing as npt
-from PySide6.QtCore import QPointF, Qt, QRectF
+from PySide6.QtCore import QPointF, Qt, QRectF, Signal, QObject
 from PySide6.QtWidgets import QApplication, QMessageBox, QMainWindow
 from itertools import repeat
 
@@ -23,10 +23,12 @@ def forceShow():
     app = pg.mkQApp()
     app.exec()
 
-class PgPlotItem:
+class PgPlotItem(QObject):
     """
     A wrapper around default PlotItem with extra references.
     This is primarily to aid in image-related functionality.
+
+    This is a subclass of QObject in order to enable signal/slot connections.
     """
     trackingDtype = np.float64
 
@@ -35,7 +37,11 @@ class PgPlotItem:
     CURSOR_SHOW_POS = 1
     CURSOR_SHOW_VALUE = 2
 
+    # Custom signals
+    sigROIselectionChangeFinished = Signal(np.ndarray)
+
     def __init__(self, plotItem: pg.PlotItem, parent: PgFigure):
+        super().__init__() # for signal/slot
         self._plotItem = plotItem
         self._parent = parent
         # Extras
@@ -56,7 +62,11 @@ class PgPlotItem:
                            resizable=True,
                            pen=pg.mkPen('k'),
                            hoverPen=pg.mkPen((150,150,150))) # created but not added
-        self._roi.addScaleHandle((1, 0),(0.5, 0.5))
+        self._roi.addScaleHandle((1, 0),(0, 1))
+        self._roi.addScaleHandle((0, 0),(1, 1))
+        self._roi.addScaleHandle((0, 1),(1, 0))
+        self._roi.addScaleHandle((1, 1),(0, 0))
+        self._roi.sigRegionChangeFinished.connect(self.onROIchangeFinished)
 
     # Forward everything unknown to the original PlotItem
     def __getattr__(self, name):
@@ -68,6 +78,10 @@ class PgPlotItem:
         Return the underlying, original pyqtgraph PlotItem class.
         """
         return self._plotItem
+
+    @property
+    def roi(self) -> pg.ROI:
+        return self._roi
 
     @property
     def im(self) -> pg.ImageItem | None:
@@ -358,11 +372,13 @@ class PgPlotItem:
             )
         )
 
-    def _getNearestImagePointIndex(self) -> np.ndarray | None:
+    def _getNearestImagePointIndex(self, pos: np.ndarray | None = None) -> np.ndarray | None:
+        if pos is None:
+            pos = self._cursorPos
         # NOTE: cursorPos may be nan/invalid if hovering over another subplot
-        if np.all(np.isnan(self._cursorPos)):
+        if np.all(np.isnan(pos)):
             return None
-        offset = self._cursorPos - self._btmLeftPos
+        offset = pos - self._btmLeftPos
         index = offset / self._pixelSize # this is in x/y
         dataRows, dataCols = self._imgData.shape
         if np.any(index < 0) or index[0] > dataCols or index[1] > dataRows: # pyright: ignore
@@ -434,6 +450,31 @@ class PgPlotItem:
             self._roi.setPos(centre-wh/2)
             self._roi.setSize(wh)
             self.addItem(self._roi)
+        self.onROIchangeFinished(self._roi) # trigger explicitly for both show/hide
+
+    def onROIchangeFinished(self, roi: pg.ROI):
+        if self.im is None:
+            return
+
+        roiPos = roi.pos()
+        roiSize = roi.size()
+        # print(roiPos)
+        # print(roiSize)
+        # Note that this is X then Y
+        startImgIdx = self._getNearestImagePointIndex(np.array(roiPos))
+        endImgIdx = self._getNearestImagePointIndex(
+                np.array(roiPos + roiSize)) + 1 # add 1 to include the final
+        # TODO: handle for corners outside bounds
+
+        # print(startImgIdx)
+        # print(endImgIdx)
+
+        # Only send selection if the ROI is actually active
+        if self._roi not in self.base.items:
+            selection = np.array([])
+        else:
+            selection = self._imgData[startImgIdx[1]:endImgIdx[1], startImgIdx[0]:endImgIdx[0]]
+        self.sigROIselectionChangeFinished.emit(selection)
 
 
 class PgFigure(QMainWindow):
