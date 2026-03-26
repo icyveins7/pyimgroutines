@@ -57,7 +57,7 @@ class HistogramItem(pg.BarGraphItem):
 if __name__ == "__main__":
     from ..core import PgFigure, forceShow
     fig = PgFigure()
-    fig.setPlotGrid(2,1)
+    fig.setPlotGrid(3,1)
     x = np.random.randint(0, 10, 100).reshape((10, 10))
     fig[0,0].image(x)
     hist = HistogramItem.fromData(x)
@@ -67,6 +67,15 @@ if __name__ == "__main__":
     dynhist = HistogramItem()
     dynhist.linkToImagePlot(fig[0,0])
     fig[1,0].addItem(dynhist)
+
+    regionItem = pg.LinearRegionItem()
+    fig[1,0].addItem(regionItem)
+
+    fig[2,0].image(fig[0,0].mask)
+    fig[0,0].linkToLinearRegionItem(regionItem)
+    def updateMaskImg(mask):
+        fig[2,0].im.setImage(mask.astype(np.uint8))
+    fig[0,0].sigMaskChanged.connect(updateMaskImg)
 
     fig.show()
     forceShow()

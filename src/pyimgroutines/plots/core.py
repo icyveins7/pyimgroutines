@@ -39,6 +39,7 @@ class PgPlotItem(QObject):
 
     # Custom signals
     sigROIselectionChangeFinished = Signal(np.ndarray)
+    sigMaskChanged = Signal(np.ndarray)
 
     def __init__(self, plotItem: pg.PlotItem, parent: PgFigure):
         super().__init__() # for signal/slot
@@ -67,6 +68,7 @@ class PgPlotItem(QObject):
         self._roi.addScaleHandle((0, 1),(1, 0))
         self._roi.addScaleHandle((1, 1),(0, 0))
         self._roi.sigRegionChangeFinished.connect(self.onROIchangeFinished)
+        self._mask = np.zeros((1, 1), dtype=bool)
 
     # Forward everything unknown to the original PlotItem
     def __getattr__(self, name):
@@ -78,6 +80,10 @@ class PgPlotItem(QObject):
         Return the underlying, original pyqtgraph PlotItem class.
         """
         return self._plotItem
+
+    @property
+    def mask(self) -> np.ndarray:
+        return self._mask
 
     @property
     def roi(self) -> pg.ROI:
@@ -476,6 +482,22 @@ class PgPlotItem(QObject):
             selection = self._imgData[startImgIdx[1]:endImgIdx[1], startImgIdx[0]:endImgIdx[0]]
         self.sigROIselectionChangeFinished.emit(selection)
 
+    def setMaskFromLinearRegionItem(self, item: pg.LinearRegionItem):
+        # TODO: maybe make a custom MaskItem
+        if self._imgData is None:
+            return
+
+        region = item.getRegion()
+        self._mask = np.logical_and(
+            self._imgData >= region[0],
+            self._imgData <= region[1]
+        )
+        self.sigMaskChanged.emit(self._mask)
+
+    def linkToLinearRegionItem(self, item: pg.LinearRegionItem):
+        # TODO: maybe make a custom MaskItem
+        item.sigRegionChangeFinished.connect(self.setMaskFromLinearRegionItem)
+
 
 class PgFigure(QMainWindow):
     """
@@ -763,7 +785,7 @@ if __name__ == "__main__":
     else:
         rows = 3
         cols = 5
-        length = 3
+        length = 7
     x = np.arange(rows * cols).reshape((rows, cols))
     f = PgFigure()
     f.plt.image(x)
