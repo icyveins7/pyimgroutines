@@ -50,7 +50,13 @@ class PgPlotItem:
         self._cbar = pg.ColorBarItem()
         self._lockedPointing = False
         self._addHalfPixelBorder = False
-        self._roi = None
+        self._roi = pg.ROI((0, 0),
+                           movable=True,
+                           rotatable=False,
+                           resizable=True,
+                           pen=pg.mkPen('k'),
+                           hoverPen=pg.mkPen((150,150,150))) # created but not added
+        self._roi.addScaleHandle((1, 0),(0.5, 0.5))
 
     # Forward everything unknown to the original PlotItem
     def __getattr__(self, name):
@@ -416,33 +422,17 @@ class PgPlotItem:
         self._setMouseLabelTextAndPos()
 
     def _toggleROI(self):
-        if self._roi is not None:
+        if self._roi in self.base.items:
             self.removeItem(self._roi)
-            self._roi = None
         else:
-            # If there's an image, use ROI
-            if self._im is not None:
-                viewrangeX, viewrangeY = self.viewRange()
-                centre = np.array([
-                    0.5*(viewrangeX[0]+viewrangeX[1]), 0.5*(viewrangeY[0]+viewrangeY[1])
-                ])
-                wh = np.array([
-                    (viewrangeX[1]-viewrangeX[0])/2, (viewrangeY[1]-viewrangeY[0])/2])
-                self._roi = pg.ROI(centre-wh/2, wh, # pyright:ignore
-                                   movable=True,
-                                   rotatable=False,
-                                   resizable=True,
-                                   pen=pg.mkPen('k'),
-                                   hoverPen=pg.mkPen((150,150,150)))
-                self._roi.addScaleHandle(
-                    (1, 0),
-                    (0.5, 0.5)
-                )
-
-            else:
-                # Otherwise, use LinearRegionItem
-                self._roi = pg.LinearRegionItem()
-
+            viewrangeX, viewrangeY = self.viewRange()
+            centre = np.array([
+                0.5*(viewrangeX[0]+viewrangeX[1]), 0.5*(viewrangeY[0]+viewrangeY[1])
+            ])
+            wh = np.array([
+                (viewrangeX[1]-viewrangeX[0])/2, (viewrangeY[1]-viewrangeY[0])/2])
+            self._roi.setPos(centre-wh/2)
+            self._roi.setSize(wh)
             self.addItem(self._roi)
 
 

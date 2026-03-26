@@ -15,6 +15,10 @@ class KeyBuffer:
         return self._buf[idx]
 
     def parseKey(self, key: Qt.Key) -> Qt.Key | None:
+        """
+        Parse a key to see if it is in the accepted keys,
+        otherwise returns None.
+        """
         if key in self._acceptedKeys:
             self._buf.append(key)
             return None
