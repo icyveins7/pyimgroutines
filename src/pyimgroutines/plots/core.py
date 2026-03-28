@@ -403,7 +403,8 @@ class PgPlotItem(QObject):
                 axisOrder='row-major'
             )
             self.scene().addItem(self._minimap)
-            self._minimap.setRect(50,50,32,-32) # set height negative so it's +ve y upwards
+            # Make sure to position it relative to the subplot
+            self.repositionMinimap()
 
     def _rotateCursorMode(self):
         self._cursorMode = (self._cursorMode + 1) % 3
@@ -546,6 +547,9 @@ class PgPlotItem(QObject):
         else:
             self.scene().addItem(self._minimap)
 
+    def repositionMinimap(self):
+        pltWindowPos = self.base.pos()
+        self._minimap.setRect(pltWindowPos.x()+50,pltWindowPos.y()+50,32,-32) # set height negative so it's +ve y upwards
 
 class PgFigure(QMainWindow):
     """
@@ -823,6 +827,13 @@ r: Toggle ROI
             if not np.array_equal(index, self._currPlotIndex):
                 plt.mouseLabel.hide()
 
+    def resizeEvent(self, evt):
+        # TODO: handle the custom resizing in the PgPlotItems
+        for plt in np.nditer(self._plts, flags=['refs_ok']):
+            plt.item().repositionMinimap()
+        super().resizeEvent(evt)
+
+
 
 
 if __name__ == "__main__":
@@ -876,6 +887,9 @@ if __name__ == "__main__":
             datac[i,j] = np.nan
             plt.image(datac)
             plt.cbar.setLevels((1,2))
+            # print(plt.vb.viewPos())
+            print(plt.pos())
+            # print(plt.vb.boundingRect())
 
     forceShow()
 
