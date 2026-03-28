@@ -69,6 +69,7 @@ class PgPlotItem(QObject):
         self._roi.addScaleHandle((1, 1),(0, 0))
         self._roi.sigRegionChangeFinished.connect(self.onROIchangeFinished)
         self._mask = np.zeros((1, 1), dtype=bool)
+        self._minimap = pg.ImageItem()
 
     # Forward everything unknown to the original PlotItem
     def __getattr__(self, name):
@@ -271,10 +272,12 @@ class PgPlotItem(QObject):
         self,
         arr: np.ndarray,
         xywh: list | None = None,
+        xMesh_yMesh: tuple[np.ndarray, np.ndarray] | None = None,
         addHalfPixelBorder: bool = True,
         zvalue: int = -100,
         colorbar: bool = True,
-        includeLegend: bool = False
+        includeLegend: bool = False,
+        addMinimap: bool = True
     ):
         """
         Plots an image from a numpy array.
@@ -288,7 +291,16 @@ class PgPlotItem(QObject):
 
         xywh : list | None
             Bottom-left position (x/y) and width/height (w/h) in a list.
-            Defaults to None, which simply uses (0, 0) and the number of pixels respectively.
+            This is the prioritised method to define the bounding rectangle;
+            see xMesh_yMesh for the alternative method if this is None.
+            If both methods are left None, it is equivalent to setting this to
+            (0, 0) and the number of pixels respectively.
+
+        xMesh_yMesh : tuple[np.ndarray, np.ndarray]
+            This alternative method of specifying the bounding rectangle is
+            a convenient argument when the x and y meshgrids are available.
+            This function will automatically calculate the necessary xywh argument
+            above.
 
         addHalfPixelBorder : bool
             Whether to automatically add half a pixel as a border around the entire image.
@@ -309,6 +321,7 @@ class PgPlotItem(QObject):
             Whether to include a legend. The image item itself is not added to the legend,
             but this is useful so other traditional plot items can be added and show up.
         """
+        # TODO: things are not handled well when multiple images are added
         if includeLegend:
             self.addLegend()
 
@@ -316,13 +329,28 @@ class PgPlotItem(QObject):
         self._imgData = arr
         self._im = pg.ImageItem(arr, axisOrder='row-major') # default to row-major instead
 
-        # Default to 0,0 bottom left, width and height in pixels
-        if xywh is None:
-            xywh = [0, 0, arr.shape[1], arr.shape[0]]
-
-        # Centres each pixel on the grid coordinates (instead of corners)
         pixelWidth = 1
         pixelHeight = 1
+
+        # Default to 0,0 bottom left, width and height in pixels
+        if xywh is None:
+            if xMesh_yMesh is None:
+                xywh = [0, 0, arr.shape[1], arr.shape[0]]
+            else:
+                # Calculate from the meshes
+                xMesh, yMesh = xMesh_yMesh
+                xUniqueMesh = np.sort(np.unique(xMesh))
+                yUniqueMesh = np.sort(np.unique(yMesh))
+                pixelWidth = xUniqueMesh[1] - xUniqueMesh[0]
+                pixelHeight = yUniqueMesh[1] - yUniqueMesh[0]
+                xywh = [
+                    np.min(xMesh),
+                    np.min(yMesh),
+                    np.max(xMesh) - np.min(xMesh) + pixelWidth,
+                    np.max(yMesh) - np.min(yMesh) + pixelHeight
+                ]
+
+        # Centres each pixel on the grid coordinates (instead of corners)
         if addHalfPixelBorder:
             pixelWidth = xywh[2] / arr.shape[1]
             pixelHeight = xywh[3] / arr.shape[0]
@@ -362,6 +390,20 @@ class PgPlotItem(QObject):
 
         # Disable auto-range, tends to be buggy/annoying/enter loops
         self.disableAutoRange(pg.ViewBox.XYAxes)
+
+        if addMinimap:
+            # TODO: need to draw the rect showing current FOV
+            targetLength = 64
+            targetDsrH = self._imgData.shape[0] // targetLength
+            targetDsrW = self._imgData.shape[1] // targetLength
+            targetDsrH = 1 if targetDsrH == 0 else targetDsrH
+            targetDsrW = 1 if targetDsrW == 0 else targetDsrW
+            self._minimap.setImage(
+                self._imgData[::targetDsrH, ::targetDsrW],
+                axisOrder='row-major'
+            )
+            self.scene().addItem(self._minimap)
+            self._minimap.setRect(50,50,32,-32) # set height negative so it's +ve y upwards
 
     def _rotateCursorMode(self):
         self._cursorMode = (self._cursorMode + 1) % 3
@@ -497,6 +539,12 @@ class PgPlotItem(QObject):
     def linkToLinearRegionItem(self, item: pg.LinearRegionItem):
         # TODO: maybe make a custom MaskItem
         item.sigRegionChangeFinished.connect(self.setMaskFromLinearRegionItem)
+
+    def _toggleMinimap(self):
+        if self._minimap in self.scene().items():
+            self.scene().removeItem(self._minimap)
+        else:
+            self.scene().addItem(self._minimap)
 
 
 class PgFigure(QMainWindow):
@@ -703,6 +751,9 @@ class PgFigure(QMainWindow):
         elif ev.key() == Qt.Key.Key_R:
             # Toggle ROI
             curPlt._toggleROI() # pyright: ignore
+        elif ev.key() == Qt.Key.Key_M:
+            # Toggle minimap
+            curPlt._toggleMinimap() # pyright: ignore
 
         return super().keyPressEvent(ev)
 
