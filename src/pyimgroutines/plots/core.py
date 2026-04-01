@@ -277,7 +277,7 @@ class PgPlotItem(QObject):
         zvalue: int = -100,
         colorbar: bool = True,
         includeLegend: bool = False,
-        addMinimap: bool = True
+        addMinimap: bool = False # TODO: default True when actually ready
     ):
         """
         Plots an image from a numpy array.
