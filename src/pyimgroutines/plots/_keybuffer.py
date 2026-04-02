@@ -1,11 +1,22 @@
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QObject, Signal
 from typing import Iterable
 import numpy as np
 
-class KeyBuffer:
+class KeyBuffer(QObject):
+    bufferChanged = Signal()
+    
     def __init__(self, acceptedKeys: Iterable[Qt.Key]):
+        super().__init__()
         self._acceptedKeys = set(acceptedKeys)
         self._buf = list()
+
+    @property
+    def buffer(self) -> list:
+        return self._buf
+
+    @property
+    def string(self) -> str:
+        return "".join(chr(key) for key in self._buf)
 
     @property
     def acceptedKeys(self) -> set:
@@ -18,9 +29,12 @@ class KeyBuffer:
         """
         Parse a key to see if it is in the accepted keys,
         otherwise returns None.
+
+        Emits bufferChanged signal when a key is accepted.
         """
         if key in self._acceptedKeys:
             self._buf.append(key)
+            self.bufferChanged.emit()
             return None
         else:
             return key
@@ -28,11 +42,13 @@ class KeyBuffer:
     def flush(self) -> tuple[Qt.Key]:
         keys = tuple(self._buf)
         self._buf.clear()
+        self.bufferChanged.emit()
         return keys
 
     def flushString(self) -> str:
         s = "".join(chr(key) for key in self._buf)
         self._buf.clear()
+        self.bufferChanged.emit()
         return s
 
 class KeyBufferCoordinates(KeyBuffer):
@@ -46,6 +62,7 @@ class KeyBufferCoordinates(KeyBuffer):
             Qt.Key.Key_Less,
             Qt.Key.Key_Greater,
             Qt.Key.Key_Equal,
+            Qt.Key.Key_E, # support scientific notation
             Qt.Key.Key_0,
             Qt.Key.Key_1,
             Qt.Key.Key_2,

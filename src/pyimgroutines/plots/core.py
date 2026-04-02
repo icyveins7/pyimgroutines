@@ -604,6 +604,7 @@ class PgFigure(QMainWindow):
         self._isMaximized = False
 
         self._keybuffer = KeyBufferCoordinates()
+        self._keybuffer.bufferChanged.connect(self._onKeyBufferChanged)
 
     # Forward unknown attributes to the graphics widget
     def __getattr__(self, name):
@@ -701,12 +702,15 @@ class PgFigure(QMainWindow):
                 plt.setLabel('bottom', xlabel)
             if ylabel is not None:
                 plt.setLabel('left', ylabel)
+            # Disable ViewBox key handling, go straight to our custom handling
+            # This disables the Ctrl -/+ zoom and Ctrl A reset, but that's only used
+            # in mouseRect mode anyway which i don't intend to target
+            plt.vb.keyPressEvent = lambda ev: self.keyPressEvent(ev)
             # TODO: if both links specified then enable across subplot mouse tracking
             self._plts[i, j] = plt
 
     def keyPressEvent(self, ev):
         curPlt = self[self._currPlotIndex[0], self._currPlotIndex[1]]
-
         key = self._keybuffer.parseKey(ev.key())
         if key is None:
             return
@@ -751,15 +755,20 @@ class PgFigure(QMainWindow):
             helpbox.exec()
         elif ev.key() == Qt.Key.Key_B:
             # Toggle status bar visibility
-            self.statusBar().setVisible(not self.statusBar().isVisible())
+            sb = self.statusBar()
+            sb.setVisible(not sb.isVisible())
         elif ev.key() == Qt.Key.Key_R:
             # Toggle ROI
             curPlt._toggleROI() # pyright: ignore
         elif ev.key() == Qt.Key.Key_M:
             # Toggle minimap
             curPlt._toggleMinimap() # pyright: ignore
+        else:
+            # Key not handled by us, let Qt propagate it
+            return super().keyPressEvent(ev)
 
-        return super().keyPressEvent(ev)
+        # If we handled the key, accept it to prevent double-firing
+        ev.accept()
 
     def _makeHelpDialog(self):
         helpbox = QMessageBox()
@@ -833,7 +842,9 @@ r: Toggle ROI
             plt.item().repositionMinimap()
         super().resizeEvent(evt)
 
-
+    def _onKeyBufferChanged(self):
+        s = self._keybuffer.string
+        self.statusBar().showMessage(s)
 
 
 if __name__ == "__main__":
