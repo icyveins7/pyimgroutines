@@ -32,7 +32,11 @@ class KeyBuffer(QObject):
 
         Emits bufferChanged signal when a key is accepted.
         """
-        if key in self._acceptedKeys:
+        # Remove keys; backspace is special and not explicitly in the acceptedKeys
+        if key == Qt.Key.Key_Backspace and len(self._buf):
+            self._buf.pop()
+            self.bufferChanged.emit()
+        elif key in self._acceptedKeys:
             self._buf.append(key)
             self.bufferChanged.emit()
             return None
