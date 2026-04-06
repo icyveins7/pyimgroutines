@@ -18,6 +18,7 @@ dependencies = [
 
 [project.scripts]
 PlotImageFile = "pyimgroutines.cli:PlotImageFile"
+CompareImageFiles = "pyimgroutines.cli:CompareImageFiles"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
