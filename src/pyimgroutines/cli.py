@@ -88,13 +88,14 @@ def CompareImageFiles():
     print("Done.")
     data2 = data2.reshape((args.height, args.width))
 
-    # Compute difference
-    diff = data1.astype(np.float32) - data2.astype(np.float32)
+    # Compute difference (promote to appropriate float type)
+    result_dtype = np.result_type(data1, data2, np.float32)
+    diff = data1.astype(result_dtype) - data2.astype(result_dtype)
 
     # Estimate colorbar levels using percentiles (robust to invalid values and NaNs)
-    lower_1, upper_1 = np.nanpercentile(data1, [25, 75])
-    lower_2, upper_2 = np.nanpercentile(data2, [25, 75])
-    lower_d, upper_d = np.nanpercentile(diff, [25, 75])
+    lower_1, upper_1 = np.nanpercentile(data1, [35, 65])
+    lower_2, upper_2 = np.nanpercentile(data2, [35, 65])
+    lower_d, upper_d = np.nanpercentile(diff,  [35, 65])
     if lower_d == upper_d:
         lower_d = -1
         upper_d = 1
