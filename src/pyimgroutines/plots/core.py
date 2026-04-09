@@ -595,6 +595,7 @@ class PgFigure(QMainWindow):
 
         # Create the graphics widget and set as central widget
         self._graphicsWidget = pg.GraphicsLayoutWidget(*args, **kwargs)
+        self._graphicsWidget.setAntialiasing(False)
         self.setCentralWidget(self._graphicsWidget)
 
         self._plts = np.empty((0, 0), dtype=PgPlotItem)
