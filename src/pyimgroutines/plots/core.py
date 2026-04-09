@@ -366,6 +366,7 @@ class PgPlotItem(QObject):
 
         self._im.setRect(QRectF(*xywh))
         self._im.setZValue(zvalue)
+        self._im.setAutoDownsample(False)
 
         cm2use = pg.colormap.getFromMatplotlib("viridis")
         self._im.setLookupTable(cm2use.getLookupTable()) # pyright: ignore
