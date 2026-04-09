@@ -785,6 +785,7 @@ class PgFigure(QMainWindow):
         helpText = """
 h: Show this help window
 v: Rotate cursor's text modes (position / data / none)
+c: Rotate cursor's text colours
 l: Toggle magnetized cursor locks
 b: Toggle status bar
 r: Toggle ROI
