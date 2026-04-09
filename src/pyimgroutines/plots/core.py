@@ -275,6 +275,7 @@ class PgPlotItem(QObject):
         xMesh_yMesh: tuple[np.ndarray, np.ndarray] | None = None,
         addHalfPixelBorder: bool = True,
         zvalue: int = -100,
+        cmap: pg.colormap.ColorMap | None = pg.colormap.get("viridis"),
         colorbar: bool = True,
         includeLegend: bool = False,
         addMinimap: bool = False # TODO: default True when actually ready
@@ -313,6 +314,11 @@ class PgPlotItem(QObject):
 
         zvalue : int
             Priority/height of the image. Lower numbers will paint the image 'behind' other items.
+
+        cmap : pg.colormap.ColorMap | None
+            Colormap to use for the image.
+            Defaults to viridis. Use None if you want grayscale,
+            which is pyqtgraph's default.
 
         colorbar : bool
             Whether to include a colorbar. Defaults to True.
@@ -368,13 +374,14 @@ class PgPlotItem(QObject):
         self._im.setZValue(zvalue)
         self._im.setAutoDownsample(False)
 
-        cm2use = pg.colormap.getFromMatplotlib("viridis")
-        self._im.setLookupTable(cm2use.getLookupTable()) # pyright: ignore
+        # cm2use = pg.colormap.getFromMatplotlib("viridis")
+        if cmap is not None:
+            self._im.setLookupTable(cmap.getLookupTable()) # pyright: ignore
 
         if colorbar:
             self._cbar = self.addColorBar(
                 self._im,
-                colorMap=cm2use,
+                colorMap=cmap,
                 interactive=False # default false because large images will lag
             )
 
@@ -879,7 +886,7 @@ if __name__ == "__main__":
         y = np.arange(length*length)
         y = y % 2
         y = y.reshape((length, length))
-        f2.plt.image(y)
+        f2.plt.image(y, cmap=None)
         f2.show()
 
         f3 = PgFigure()
