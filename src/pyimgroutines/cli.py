@@ -1,6 +1,7 @@
 import argparse
 import numpy as np
 from .plots import PgFigure, forceShow
+from .io import read_image_with_header
 
 def PlotImageFile():
     parser = argparse.ArgumentParser(
@@ -25,9 +26,10 @@ def PlotImageFile():
 
     # Load raw binary data with offset
     print(f"Reading {args.filepath}...")
-    data = np.fromfile(args.filepath, dtype=args.dtype, offset=args.offsetBytes)
-    data = data.reshape((args.height, args.width))
+    data, header = read_image_with_header(args.filepath, args.width, args.height, args.dtype, args.offsetBytes)
     print("Done")
+    print("Header bytes: ")
+    print(header)
 
     # Estimate colorbar levels using percentiles (robust to invalid values and NaNs)
     lower, upper = np.nanpercentile(data, [35, 65])
@@ -79,14 +81,16 @@ def CompareImageFiles():
 
     # Load raw binary data with offset
     print(f"Reading {filepaths[0]}...")
-    data1 = np.fromfile(filepaths[0], dtype=dtypes[0], offset=offsets[0])
+    data1, header1 = read_image_with_header(filepaths[0], args.width, args.height, dtypes[0], offsets[0])
     print("Done.")
-    data1 = data1.reshape((args.height, args.width))
+    print(f"Header bytes from {filepaths[0]}: ")
+    print(header1)
 
     print(f"Reading {filepaths[1]}...")
-    data2 = np.fromfile(filepaths[1], dtype=dtypes[1], offset=offsets[1])
+    data2, header2 = read_image_with_header(filepaths[1], args.width, args.height, dtypes[1], offsets[1])
     print("Done.")
-    data2 = data2.reshape((args.height, args.width))
+    print(f"Header bytes from {filepaths[1]}: ")
+    print(header2)
 
     # Compute difference (promote to appropriate float type)
     result_dtype = np.result_type(data1, data2, np.float32)
