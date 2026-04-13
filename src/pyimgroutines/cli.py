@@ -14,8 +14,8 @@ def PlotImageFile():
         description="Plot a binary image file using PgFigure. Currently only supports single-channel (grayscale) images."
     )
     parser.add_argument("-f", "--filepath", type=str, required=True, help="Path to the binary image file")
-    parser.add_argument("-W", "--width", type=str, required=True, help="Width of the image in pixels")
-    parser.add_argument("-H", "--height", type=str, required=True, help="Height of the image in pixels")
+    parser.add_argument("-W", "--width", type=str, required=True, help="Width of the image in pixels; you may specify (offsetBytes,dtype) to parse it from the header e.g. -W 4,int32")
+    parser.add_argument("-H", "--height", type=str, required=True, help="Height of the image in pixels; you may specify (offsetBytes,dtype) to parse it from the header e.g. -H 8,int32")
     parser.add_argument(
         "--dtype", type=np.dtype, default=np.float32,
         help="NumPy dtype of the data (default: float32)"
@@ -78,8 +78,8 @@ def CompareImageFiles():
         description="Compare two binary image files side-by-side with their difference. Currently only supports single-channel (grayscale) images."
     )
     parser.add_argument("-f", "--filepath", type=str, required=True, help="Comma-separated paths to two binary image files (e.g. file1.bin,file2.bin)")
-    parser.add_argument("-W", "--width", type=str, required=True, help="Width of the images in pixels")
-    parser.add_argument("-H", "--height", type=str, required=True, help="Height of the images in pixels")
+    parser.add_argument("-W", "--width", type=str, required=True, help="Width of the image in pixels; you may specify (offsetBytes,dtype) to parse it from the header e.g. -W 4,int32")
+    parser.add_argument("-H", "--height", type=str, required=True, help="Height of the image in pixels; you may specify (offsetBytes,dtype) to parse it from the header e.g. -H 8,int32")
     parser.add_argument(
         "--dtype", type=str, default="float32,float32",
         help="Comma-separated NumPy dtypes for each image (default: float32,float32)"
