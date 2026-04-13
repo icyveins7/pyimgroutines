@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import Iterable, Protocol
-from PySide6.QtGui import QPen
+from PySide6.QtGui import QBrush, QPen, QTextBlockFormat, QTextCursor, QColor
 import pyqtgraph as pg
 import numpy as np
 from numpy import typing as npt
@@ -428,6 +428,12 @@ class PgPlotItem(QObject):
                 255 - colour.blue(),
             )
         )
+        # Invert the background
+        cur = QTextCursor(self._mouseLabel.textItem.document())
+        cur.select(QTextCursor.SelectionType.BlockUnderCursor)
+        bf = QTextBlockFormat()
+        bf.setBackground(QColor(colour.red(), colour.green(), colour.blue(), 128))
+        cur.mergeBlockFormat(bf)
 
     def _getNearestImagePointIndex(self, pos: np.ndarray | None = None) -> np.ndarray | None:
         if pos is None:
@@ -452,6 +458,13 @@ class PgPlotItem(QObject):
             bottomLeftPointerPos = self._btmLeftPos
         return index * self._pixelSize + bottomLeftPointerPos, index
 
+    def _replaceMouseLabelText(self, newtext: str):
+        # The pyqtgraph one will reset all formatting;
+        # we have to use qtextcursor directly
+        c = QTextCursor(self._mouseLabel.textItem.document())
+        c.select(QTextCursor.SelectionType.Document)
+        c.insertText(newtext)
+
     def _setMouseLabelTextAndPos(self):
         # Set the position of the label
         if self._lockedPointing:
@@ -466,17 +479,17 @@ class PgPlotItem(QObject):
 
             # Set the text of the label
             if self._cursorMode == self.CURSOR_SHOW_POS:
-                self._mouseLabel.setText(f"{pos[0]:.6g}, {pos[1]:.6g}")
+                self._replaceMouseLabelText(f"{pos[0]:.6g}, {pos[1]:.6g}")
             elif self._cursorMode == self.CURSOR_SHOW_VALUE:
                 index = self._getNearestImagePointIndex() # pyright: ignore
                 if index is None:
-                    self._mouseLabel.setText(f"OOB") # pyright: ignore
+                    self._replaceMouseLabelText(f"OOB") # pyright: ignore
                 else:
-                    self._mouseLabel.setText(f"[{int(index[1])}, {int(index[0])}]: {self._imgData[int(index[1]), int(index[0])]}") # pyright: ignore
+                    self._replaceMouseLabelText(f"[{int(index[1])}, {int(index[0])}]: {self._imgData[int(index[1]), int(index[0])]}") # pyright: ignore
             else:
-                self._mouseLabel.setText("")
+                self._replaceMouseLabelText("")
         else:
-            self._mouseLabel.setText("")
+            self._replaceMouseLabelText("")
 
 
     def _setCursorPositionInPlot(self, coords):
