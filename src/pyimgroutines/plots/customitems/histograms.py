@@ -1,6 +1,10 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from ..core import PgPlotItem
+
 import pyqtgraph as pg
 import numpy as np
-from ..core import PgPlotItem
 
 class HistogramItem(pg.BarGraphItem):
     def __init__(self, counts: np.ndarray | None = None, edges: np.ndarray | None = None, **kwargs):
