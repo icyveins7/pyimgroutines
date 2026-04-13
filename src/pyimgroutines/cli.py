@@ -3,13 +3,19 @@ import numpy as np
 from .plots import PgFigure, forceShow
 from .io import read_image_with_header
 
+def splitOffsetAndTypeString(offsetAndTypeString):
+    splitString = offsetAndTypeString.split(',')
+    offset = int(splitString[0])
+    dtype = np.dtype(splitString[1])
+    return offset, dtype
+
 def PlotImageFile():
     parser = argparse.ArgumentParser(
         description="Plot a binary image file using PgFigure. Currently only supports single-channel (grayscale) images."
     )
     parser.add_argument("-f", "--filepath", type=str, required=True, help="Path to the binary image file")
-    parser.add_argument("-W", "--width", type=int, required=True, help="Width of the image in pixels")
-    parser.add_argument("-H", "--height", type=int, required=True, help="Height of the image in pixels")
+    parser.add_argument("-W", "--width", type=str, required=True, help="Width of the image in pixels")
+    parser.add_argument("-H", "--height", type=str, required=True, help="Height of the image in pixels")
     parser.add_argument(
         "--dtype", type=np.dtype, default=np.float32,
         help="NumPy dtype of the data (default: float32)"
@@ -24,9 +30,26 @@ def PlotImageFile():
     )
     args = parser.parse_args()
 
+    if "," in args.width:
+        # Return a tuple to use
+        width = splitOffsetAndTypeString(args.width)
+    else:
+        width = int(args.width)
+
+    if "," in args.height:
+        # Return a tuple to use
+        height = splitOffsetAndTypeString(args.height)
+    else:
+        height = int(args.height)
+
+    # Helpful check that offsetBytes is defined adequately
+    if isinstance(width, tuple) or isinstance(height, tuple):
+        if args.offsetBytes == 0:
+            raise ValueError("--offsetBytes must be > 0 if width/height is to be read from the header")
+
     # Load raw binary data with offset
     print(f"Reading {args.filepath}...")
-    data, header = read_image_with_header(args.filepath, args.width, args.height, args.dtype, args.offsetBytes)
+    data, header = read_image_with_header(args.filepath, width, height, args.dtype, args.offsetBytes)
     print("Done")
     print("Header bytes: ")
     print(header)
@@ -43,13 +66,20 @@ def PlotImageFile():
     fig.show()
     forceShow() # otherwise the window will appear and then disappear immediately
 
+# ========================================================================================
+# ========================================================================================
+# ========================================================================================
+# ========================================================================================
+# ========================================================================================
+# ========================================================================================
+
 def CompareImageFiles():
     parser = argparse.ArgumentParser(
         description="Compare two binary image files side-by-side with their difference. Currently only supports single-channel (grayscale) images."
     )
     parser.add_argument("-f", "--filepath", type=str, required=True, help="Comma-separated paths to two binary image files (e.g. file1.bin,file2.bin)")
-    parser.add_argument("-W", "--width", type=int, required=True, help="Width of the images in pixels")
-    parser.add_argument("-H", "--height", type=int, required=True, help="Height of the images in pixels")
+    parser.add_argument("-W", "--width", type=str, required=True, help="Width of the images in pixels")
+    parser.add_argument("-H", "--height", type=str, required=True, help="Height of the images in pixels")
     parser.add_argument(
         "--dtype", type=str, default="float32,float32",
         help="Comma-separated NumPy dtypes for each image (default: float32,float32)"
@@ -79,15 +109,33 @@ def CompareImageFiles():
         raise ValueError("Exactly two comma-separated offsetBytes are required")
     offsets = [int(o) for o in offsets]
 
+    if "," in args.width:
+        # Return a tuple to use
+        width = splitOffsetAndTypeString(args.width)
+        print(width)
+    else:
+        width = int(args.width)
+
+    if "," in args.height:
+        # Return a tuple to use
+        height = splitOffsetAndTypeString(args.height)
+    else:
+        height = int(args.height)
+
+    # Helpful check that offsetBytes is defined adequately
+    if isinstance(width, tuple) or isinstance(height, tuple):
+        if args.offsetBytes == 0:
+            raise ValueError("--offsetBytes must be > 0 if width/height is to be read from the header")
+
     # Load raw binary data with offset
     print(f"Reading {filepaths[0]}...")
-    data1, header1 = read_image_with_header(filepaths[0], args.width, args.height, dtypes[0], offsets[0])
+    data1, header1 = read_image_with_header(filepaths[0], width, height, dtypes[0], offsets[0])
     print("Done.")
     print(f"Header bytes from {filepaths[0]}: ")
     print(header1)
 
     print(f"Reading {filepaths[1]}...")
-    data2, header2 = read_image_with_header(filepaths[1], args.width, args.height, dtypes[1], offsets[1])
+    data2, header2 = read_image_with_header(filepaths[1], width, height, dtypes[1], offsets[1])
     print("Done.")
     print(f"Header bytes from {filepaths[1]}: ")
     print(header2)
