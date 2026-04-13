@@ -93,7 +93,7 @@ class KeyBufferCoordinates(KeyBuffer):
         """Unfreeze the buffer."""
         self._frozen = False
 
-    def flushRange(self) -> tuple[float, float] | None:
+    def flushRange(self) -> tuple[float | None, float | None]:
         rangeString = self.flushString()
         lowerStr, upperStr = rangeString.split(":")
         lower = None if len(lowerStr) == 0 else float(lowerStr)
