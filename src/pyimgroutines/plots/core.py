@@ -772,6 +772,10 @@ class PgFigure(QMainWindow):
         elif ev.key() == Qt.Key.Key_M:
             # Toggle minimap
             curPlt._toggleMinimap() # pyright: ignore
+        elif ev.key() == Qt.Key.Key_A:
+            # Toggle aspect ratio locking
+            isLocked = curPlt.vb.getState()['aspectLocked']
+            curPlt.setAspectLocked(not isLocked)
         else:
             # Key not handled by us, let Qt propagate it
             return super().keyPressEvent(ev)
@@ -788,6 +792,7 @@ v: Rotate cursor's text modes (position / data / none)
 c: Rotate cursor's text colours
 l: Toggle magnetized cursor locks
 b: Toggle status bar
+a: Toggle aspect ratio lock
 r: Toggle ROI
 """
         helpbox.setText(helpText)
