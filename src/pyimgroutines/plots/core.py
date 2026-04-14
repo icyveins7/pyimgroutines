@@ -825,6 +825,7 @@ l: Toggle magnetized cursor locks
 b: Toggle status bar
 a: Toggle aspect ratio lock
 r: Toggle ROI
+t: Toggle targeting crosshair (will follow current magnetization)
 """
         helpbox.setText(helpText)
         return helpbox
