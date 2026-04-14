@@ -807,12 +807,23 @@ class PgFigure(QMainWindow):
         elif ev.key() == Qt.Key.Key_T:
             # Toggle targeting
             curPlt._toggleTargeting()
+        elif ev.key() == Qt.Key.Key_Shift:
+            # Mirror cursor and target
+            self._mirrorCursorAndTarget(True)
         else:
             # Key not handled by us, let Qt propagate it
             return super().keyPressEvent(ev)
 
         # If we handled the key, accept it to prevent double-firing
         ev.accept()
+
+    def keyReleaseEvent(self, ev):
+        if ev.key() == Qt.Key.Key_Shift:
+            # Mirror cursor and target
+            self._mirrorCursorAndTarget(False)
+        else:
+            # Key not handled by us, let Qt propagate it
+            return super().keyReleaseEvent(ev)
 
     def _makeHelpDialog(self):
         helpbox = QMessageBox()
@@ -829,6 +840,11 @@ t: Toggle targeting crosshair (will follow current magnetization)
 """
         helpbox.setText(helpText)
         return helpbox
+
+    def _mirrorCursorAndTarget(self, enabled: bool):
+        # TODO: take current plot and apply the same cursor/target
+        # positions to other plots, along with toggling visibility
+        print(f"_mirrorCursorAndTarget {enabled}")
 
     def subplotMaximize(self):
         i, j = self._currPlotIndex
