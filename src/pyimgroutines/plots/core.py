@@ -70,6 +70,7 @@ class PgPlotItem(QObject):
         self._roi.sigRegionChangeFinished.connect(self.onROIchangeFinished)
         self._mask = np.zeros((1, 1), dtype=bool)
         self._minimap = pg.ImageItem()
+        self._target = pg.TargetItem(movable=False)
 
     # Forward everything unknown to the original PlotItem
     def __getattr__(self, name):
@@ -572,6 +573,20 @@ class PgPlotItem(QObject):
         pltWindowPos = self.base.pos()
         self._minimap.setRect(pltWindowPos.x()+50,pltWindowPos.y()+50,32,-32) # set height negative so it's +ve y upwards
 
+    def _handleTargeting(self):
+        if self._lockedPointing:
+            lockedPos, _ = self._getLockedPosition()
+            if lockedPos is not None:
+                self._target.setPos(lockedPos[0], lockedPos[1])
+        else:
+            self._target.setPos(self._cursorPos) # could also use self._cursorPos?
+
+    def _toggleTargeting(self):
+        if self._target in self.base.items:
+            self.removeItem(self._target)
+        else:
+            self.addItem(self._target)
+
 class PgFigure(QMainWindow):
     """
     A pyqtgraph 'figure', built on a QMainWindow containing a GraphicsLayoutWidget,
@@ -789,6 +804,9 @@ class PgFigure(QMainWindow):
             # Toggle aspect ratio locking
             isLocked = curPlt.vb.getState()['aspectLocked']
             curPlt.setAspectLocked(not isLocked)
+        elif ev.key() == Qt.Key.Key_T:
+            # Toggle targeting
+            curPlt._toggleTargeting()
         else:
             # Key not handled by us, let Qt propagate it
             return super().keyPressEvent(ev)
@@ -855,6 +873,8 @@ r: Toggle ROI
                     plt._setMouseLabelTextAndPos()
                     # Hide cursors for other plots
                     self._hideInactivePlotCursors()
+                    # Handle targeting
+                    plt._handleTargeting()
 
                     return
 
