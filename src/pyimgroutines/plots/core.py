@@ -844,7 +844,8 @@ t: Toggle targeting crosshair (will follow current magnetization)
     def _mirrorCursorAndTarget(self, enabled: bool):
         # TODO: take current plot and apply the same cursor/target
         # positions to other plots, along with toggling visibility
-        print(f"_mirrorCursorAndTarget {enabled}")
+        # print(f"_mirrorCursorAndTarget {enabled}")
+        pass
 
     def subplotMaximize(self):
         i, j = self._currPlotIndex
