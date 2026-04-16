@@ -287,6 +287,7 @@ class PgPlotItem(QObject):
         arr: np.ndarray,
         xywh: list | None = None,
         xMesh_yMesh: tuple[np.ndarray, np.ndarray] | None = None,
+        levels: tuple[float, float] | list | None = None,
         addHalfPixelBorder: bool = True,
         zvalue: int = -100,
         cmap: pg.colormap.ColorMap | None = pg.colormap.get("viridis"),
@@ -316,6 +317,11 @@ class PgPlotItem(QObject):
             a convenient argument when the x and y meshgrids are available.
             This function will automatically calculate the necessary xywh argument
             above.
+
+        levels : tuple[float, float] | list | None
+            Sets levels on the ImageItem (see .setLevels()).
+            Defaults to None, which will automatically compute min/max value of the image,
+            same as the default for pg.ImageItem if no levels are set.
 
         addHalfPixelBorder : bool
             Whether to automatically add half a pixel as a border around the entire image.
@@ -347,7 +353,11 @@ class PgPlotItem(QObject):
 
         # Save reference to image data for this subplot
         self._imgData = arr
-        self._im = pg.ImageItem(arr, axisOrder='row-major') # default to row-major instead
+        if levels is None:
+            # Have to manually get min/max again since setting
+            # levels to None specifically disables the autoLevels
+            levels = (np.nanmin(arr), np.nanmax(arr))
+        self._im = pg.ImageItem(arr, axisOrder='row-major', levels=levels) # default to row-major instead
 
         pixelWidth = 1
         pixelHeight = 1
