@@ -37,6 +37,11 @@ class PgPlotItem(QObject):
     CURSOR_SHOW_POS = 1
     CURSOR_SHOW_VALUE = 2
 
+    # Constants used for target crosshair modes
+    TARGET_NONE = 0
+    TARGET_LIGHT = 1
+    TARGET_DARK = 2
+
     # Custom signals
     sigROIselectionChangeFinished = Signal(np.ndarray)
     sigMaskChanged = Signal(np.ndarray)
@@ -71,6 +76,7 @@ class PgPlotItem(QObject):
         self._mask = np.zeros((1, 1), dtype=bool)
         self._minimap = pg.ImageItem()
         self._target = pg.TargetItem(movable=False)
+        self._targetMode = self.TARGET_NONE
 
     # Forward everything unknown to the original PlotItem
     def __getattr__(self, name):
@@ -582,10 +588,16 @@ class PgPlotItem(QObject):
             self._target.setPos(self._cursorPos) # could also use self._cursorPos?
 
     def _toggleTargeting(self):
-        if self._target in self.base.items:
+        self._targetMode = (self._targetMode + 1) % 3
+        if self._targetMode == self.TARGET_NONE:
             self.removeItem(self._target)
         else:
-            self.addItem(self._target)
+            if self._target not in self.base.items:
+                self.addItem(self._target)
+            if self._targetMode == self.TARGET_LIGHT:
+                self._target.setPen(pg.mkPen(255,255,0))
+            if self._targetMode == self.TARGET_DARK:
+                self._target.setPen(pg.mkPen(0,0,255))
 
 class PgFigure(QMainWindow):
     """
