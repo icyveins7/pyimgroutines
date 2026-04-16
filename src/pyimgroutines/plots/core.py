@@ -57,7 +57,14 @@ class PgPlotItem(QObject):
         self._cursorPos = np.array([np.nan, np.nan], dtype=self.trackingDtype)
         self._btmLeftPos = np.array([np.nan, np.nan], dtype=self.trackingDtype)
         self._pixelSize = np.array([np.nan, np.nan], dtype=self.trackingDtype)
-        self._mouseLabel = pg.TextItem()
+
+        self._mouseLabel = pg.TextItem(text="", anchor=(0, 1))
+        self._toggleTextColour() # Just run it so that we get our background colour
+        self.addItem(self._mouseLabel, ignoreBounds=True) # On at the start
+        # Set custom slot for mouseMoved/mouseClicked
+        self._parent.scene().sigMouseMoved.connect(self._parent.mouseMoved) # pyright: ignore
+        self._parent.scene().sigMouseClicked.connect(self._parent.mouseClicked) # pyright: ignore
+
         self._imgData = np.empty((0, 0), dtype=np.float32)
         self._cbar = pg.ColorBarItem()
         self._lockedPointing = False
@@ -394,14 +401,14 @@ class PgPlotItem(QObject):
 
         self.addItem(self._im)
 
+        # TODO: DEPRECATED: textitem previously set here but now in ctor
         # Slot to show cursor position
-        self._mouseLabel = pg.TextItem(text="", anchor=(0, 1)) # show to top right of cursor
+        # self._mouseLabel = pg.TextItem(text="", anchor=(0, 1)) # show to top right of cursor
         # self._mouseLabel.setFlag(self._mouseLabel.GraphicsItemFlag.ItemIgnoresTransformations)
-        self.addItem(self._mouseLabel, ignoreBounds=True)
-
-        # Set custom slot for mouseMoved/mouseClicked
-        self._parent.scene().sigMouseMoved.connect(self._parent.mouseMoved) # pyright: ignore
-        self._parent.scene().sigMouseClicked.connect(self._parent.mouseClicked) # pyright: ignore
+        # self.addItem(self._mouseLabel, ignoreBounds=True)
+        # # Set custom slot for mouseMoved/mouseClicked
+        # self._parent.scene().sigMouseMoved.connect(self._parent.mouseMoved) # pyright: ignore
+        # self._parent.scene().sigMouseClicked.connect(self._parent.mouseClicked) # pyright: ignore
 
         # Disable auto-range, tends to be buggy/annoying/enter loops
         self.disableAutoRange(pg.ViewBox.XYAxes)
