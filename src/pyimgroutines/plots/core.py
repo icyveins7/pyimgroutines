@@ -920,7 +920,7 @@ t: Toggle targeting crosshair (will follow current magnetization)
                         # Cache that this is the currently hovered plot
                         self._currPlotIndex[:] = [i, j]
                         curPlt = plt
-                        print(f"in {i},{j}")
+                        # print(f"in {i},{j}")
                         found = True
                         break
                 if found:
