@@ -901,29 +901,42 @@ t: Toggle targeting crosshair (will follow current magnetization)
             self.subplotMaximize()
 
     def mouseMoved(self, evt: QPointF):
-        for i in range(self._plts.shape[0]):
-            for j in range(self._plts.shape[1]):
-                plt = self._plts[i,j]
-                if plt.im is None:
-                    continue
-                # TODO: eventually allow mouse cursor updates only for coordinates
-                # if no image is present?
-                if plt.sceneBoundingRect().contains(evt): # pyright: ignore
-                    # Cache that this is the currently hovered plot
-                    self._currPlotIndex[:] = [i, j]
-                    # print(f"in {i},{j}")
-                    coords = plt.vb.mapSceneToView(evt) # pyright: ignore
-                    # Cache internal cursor position
-                    plt._setCursorPositionInPlot(coords)
-                    plt.mouseLabel.show()
-                    # Update text and position
-                    plt._setMouseLabelTextAndPos()
-                    # Hide cursors for other plots
-                    self._hideInactivePlotCursors()
-                    # Handle targeting
-                    plt._handleTargeting()
+        curPlt = None
+        # NOTE: when maximized, it seems like the sceneBoundingRect
+        # is inaccurate, so we force it
+        if self._isMaximized:
+            curPlt = self._plts[self._currPlotIndex[0], self._currPlotIndex[1]]
+        else:
+            found = False
+            for i in range(self._plts.shape[0]):
+                for j in range(self._plts.shape[1]):
+                    plt = self._plts[i,j]
+                    if plt.im is None:
+                        continue
 
-                    return
+                    # TODO: eventually allow mouse cursor updates only for coordinates
+                    # if no image is present?
+                    if plt.sceneBoundingRect().contains(evt): # pyright: ignore
+                        # Cache that this is the currently hovered plot
+                        self._currPlotIndex[:] = [i, j]
+                        curPlt = plt
+                        print(f"in {i},{j}")
+                        found = True
+                        break
+                if found:
+                    break
+
+        if curPlt is not None:
+            coords = curPlt.vb.mapSceneToView(evt) # pyright: ignore
+            # Cache internal cursor position
+            curPlt._setCursorPositionInPlot(coords) # pyright: ignore
+            curPlt.mouseLabel.show() # pyright: ignore
+            # Update text and position
+            curPlt._setMouseLabelTextAndPos() # pyright: ignore
+            # Hide cursors for other plots
+            self._hideInactivePlotCursors()
+            # Handle targeting
+            curPlt._handleTargeting() # pyright: ignore
 
     def _hideInactivePlotCursors(self):
         for index, plt in np.ndenumerate(self.plts):
