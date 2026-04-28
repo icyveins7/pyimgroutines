@@ -97,6 +97,10 @@ class PgPlotItem(QObject):
         return self._plotItem
 
     @property
+    def target(self) -> pg.TargetItem:
+        return self._target
+
+    @property
     def mask(self) -> np.ndarray:
         return self._mask
 
@@ -834,8 +838,9 @@ class PgFigure(QMainWindow):
             isLocked = curPlt.vb.getState()['aspectLocked']
             curPlt.setAspectLocked(not isLocked)
         elif ev.key() == Qt.Key.Key_T:
-            # Toggle targeting
-            curPlt._toggleTargeting()
+            # Toggle targeting for all plots
+            for plt in np.nditer(self.plts, ['refs_ok']):
+                plt.item()._toggleTargeting() # pyright: ignore
         elif ev.key() == Qt.Key.Key_Shift:
             # Mirror cursor and target
             self._mirrorCursorAndTarget(True)
@@ -935,8 +940,12 @@ t: Toggle targeting crosshair (will follow current magnetization)
             curPlt._setMouseLabelTextAndPos() # pyright: ignore
             # Hide cursors for other plots
             self._hideInactivePlotCursors()
+
             # Handle targeting
+            curPlt.target.show() # pyright: ignore
             curPlt._handleTargeting() # pyright: ignore
+            # Hide targets for other plots
+            self._hideInactivePlotTargets()
 
     def _hideInactivePlotCursors(self):
         for index, plt in np.ndenumerate(self.plts):
@@ -944,9 +953,15 @@ t: Toggle targeting crosshair (will follow current magnetization)
             if not np.array_equal(index, self._currPlotIndex):
                 plt.mouseLabel.hide()
 
+    def _hideInactivePlotTargets(self):
+        for index, plt in np.ndenumerate(self.plts):
+            # Match everything except current plot
+            if not np.array_equal(index, self._currPlotIndex):
+                plt.target.hide()
+
     def resizeEvent(self, evt):
         # TODO: handle the custom resizing in the PgPlotItems
-        for plt in np.nditer(self._plts, flags=['refs_ok']):
+        for plt in np.nditer(self.plts, flags=['refs_ok']):
             plt.item().repositionMinimap()
         super().resizeEvent(evt)
 
