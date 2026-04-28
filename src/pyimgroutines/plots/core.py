@@ -42,6 +42,14 @@ class PgPlotItem(QObject):
     TARGET_LIGHT = 1
     TARGET_DARK = 2
 
+    # Constants used for measure line modes
+    MEASURE_LINE_NONE = 0
+    MEASURE_LINE_DARK = 1
+    MEASURE_LINE_LIGHT = 2
+
+    MEASURE_LINE_STATE_EMPTY = 0 # initial state
+    MEASURE_LINE_STATE_POINT = 1 # has placed first point
+
     # Custom signals
     sigROIselectionChangeFinished = Signal(np.ndarray)
     sigMaskChanged = Signal(np.ndarray)
@@ -69,6 +77,7 @@ class PgPlotItem(QObject):
         self._cbar = pg.ColorBarItem()
         self._lockedPointing = False
         self._addHalfPixelBorder = False
+
         self._roi = pg.ROI((0, 0),
                            movable=True,
                            rotatable=False,
@@ -80,10 +89,22 @@ class PgPlotItem(QObject):
         self._roi.addScaleHandle((0, 1),(1, 0))
         self._roi.addScaleHandle((1, 1),(0, 0))
         self._roi.sigRegionChangeFinished.connect(self.onROIchangeFinished)
+
         self._mask = np.zeros((1, 1), dtype=bool)
         self._minimap = pg.ImageItem()
+
         self._target = pg.TargetItem(movable=False)
         self._targetMode = self.TARGET_NONE
+
+        # TODO: i think using LineSegmentROI might be better here?
+        self._measureLine = pg.PlotDataItem(
+            [0,1],[0,1],
+            pen=pg.mkPen("k", style=Qt.PenStyle.DashLine),
+            symbol="o",
+            symbolBrush="k",
+            symbolPen=None)
+        self._measureLineMode = self.MEASURE_LINE_NONE
+        self._measureLineState = self.MEASURE_LINE_STATE_EMPTY
 
     # Forward everything unknown to the original PlotItem
     def __getattr__(self, name):
@@ -620,6 +641,44 @@ class PgPlotItem(QObject):
             if self._targetMode == self.TARGET_DARK:
                 self._target.setPen(pg.mkPen(0,0,255))
 
+    def _toggleMeasureLineMode(self):
+        self._measureLineMode = (self._measureLineMode + 1) % 3
+        if self._measureLineMode == self.MEASURE_LINE_NONE:
+            self._removeMeasureLine()
+        elif self._measureLineMode == self.MEASURE_LINE_DARK:
+            self._measureLine.setPen("k")
+            self._measureLine.setSymbolBrush("k")
+        elif self._measureLineMode == self.MEASURE_LINE_LIGHT:
+            self._measureLine.setPen("w")
+            self._measureLine.setSymbolBrush("w")
+
+    def _removeMeasureLine(self):
+        if self._measureLine in self.base.items:
+            self.removeItem(self._measureLine)
+            self._measureLineState = self.MEASURE_LINE_STATE_EMPTY
+
+    def _changeMeasureLine(self, pos: QPointF):
+        if self._measureLineMode == self.MEASURE_LINE_NONE:
+            return
+
+        if self._measureLineState == self.MEASURE_LINE_STATE_EMPTY:
+            self._measureLine.setData(
+                [pos.x(), pos.x()],
+                [pos.y(), pos.y()]
+            )
+            # Show the measure line
+            self.addItem(self._measureLine)
+            # Change state
+            self._measureLineState = self.MEASURE_LINE_STATE_POINT
+
+        elif self._measureLineState == self.MEASURE_LINE_STATE_POINT:
+            # Amend the second point
+            x, y = self._measureLine.getData()
+            if x is not None and y is not None:
+                x[1] = pos.x()
+                y[1] = pos.y()
+            self._measureLine.setData(x, y)
+
 class PgFigure(QMainWindow):
     """
     A pyqtgraph 'figure', built on a QMainWindow containing a GraphicsLayoutWidget,
@@ -844,6 +903,9 @@ class PgFigure(QMainWindow):
         elif ev.key() == Qt.Key.Key_Shift:
             # Mirror cursor and target
             self._mirrorCursorAndTarget(True)
+        elif ev.key() == Qt.Key.Key_O:
+            # Toggle measure line
+            curPlt._toggleMeasureLineMode()
         else:
             # Key not handled by us, let Qt propagate it
             return super().keyPressEvent(ev)
@@ -904,6 +966,12 @@ t: Toggle targeting crosshair (will follow current magnetization)
     def mouseClicked(self, evt):
         if evt.double() and not self._isMaximized and self._plts.size > 1:
             self.subplotMaximize()
+
+        curPlt = self[self._currPlotIndex[0], self._currPlotIndex[1]]
+        # Handle measure line automatically
+        # (will no-op internally if not in measure line mode)
+        coords = curPlt.vb.mapSceneToView(evt.scenePos()) # pyright: ignore
+        curPlt._changeMeasureLine(coords)
 
     def mouseMoved(self, evt: QPointF):
         curPlt = None
