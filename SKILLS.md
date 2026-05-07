@@ -90,19 +90,20 @@ fig.plt.circles(np.array([[10, 20, 5]]), pen=pg.mkPen("b"))
 | `O` | Toggle measure line |
 | `B` | Toggle status bar |
 | `H` | Show help dialog |
-| `G` then coords then `G` | Zoom to coordinates |
-| `G` then range then `C` | Change colorbar range |
+| type coords then `G` `G` | Zoom to coordinates |
+| type range then `G` `C` | Change colorbar range |
 | Double-click | Maximize subplot |
 | `Esc` | Restore all subplots |
 
 ### Keybuffer commands (zoom-to / colorbar)
 
-While the figure is focused, press `G` to enter keybuffer mode. The status bar shows what you've typed. Then type a numeric expression and finish with a second hotkey:
+The keybuffer is **always active** — any digits, commas, colons, periods, minus signs, etc. are captured into the buffer as you type. The status bar shows the current buffer contents. Use `Backspace` to delete the last character.
 
-- **Zoom** (`G` → input → `G`): input is `x,y` where each coordinate can be:
+Once you've typed your input, press `G` to freeze the buffer, then press the action key:
+
+- **Zoom** (type input → `G` → `G`): input is `x,y` where each coordinate can be:
   - A single number (e.g. `100`) — centres the view on that value, keeping the current span
   - A range `lo:hi` (e.g. `50:150`) — sets the axis range directly
   - Empty — keeps the current range for that axis
   - Examples: `100,200` centres on (100,200). `50:150,` sets x to [50,150] and keeps y. `,0:500` keeps x and sets y to [0,500].
-- **Colorbar** (`G` → input → `C`): input is `lo:hi` where either side can be omitted to keep the current bound. E.g. `0.1:0.9` sets both, `:0.9` only changes the upper bound, `0.1:` only changes the lower bound.
-- Press `Backspace` while typing to delete the last character.
+- **Colorbar** (type input → `G` → `C`): input is `lo:hi` where either side can be omitted to keep the current bound. E.g. `0.1:0.9` sets both, `:0.9` only changes the upper bound, `0.1:` only changes the lower bound.
