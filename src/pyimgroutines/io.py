@@ -56,7 +56,10 @@ def read_image_with_header(
         height = header[heightOffsetBytes:heightOffsetBytes + np.dtype(heightType).itemsize].view(heightType)[0]
         print(f"Parsed height from header: {height}")
 
-    imgBytes = width * height * np.dtype(imgDtype).itemsize # pyright:ignore
+    # Must cast using pythonic int or alternatively to uint64,
+    # otherwise possible int32 type may overflow when calculating imgBytes
+    imgBytes = int(width) * int(height) * np.dtype(imgDtype).itemsize # pyright:ignore
+    print(f"Total image bytes = {imgBytes}")
     img = data[offsetBytes:offsetBytes + imgBytes].view(imgDtype) # pyright:ignore
     img = img.reshape((height, width)) # pyright:ignore
     return img, header
