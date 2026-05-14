@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import Iterable, Protocol
+from PySide6 import QtWidgets
 from PySide6.QtGui import QBrush, QPen, QTextBlockFormat, QTextCursor, QColor
 import pyqtgraph as pg
 import numpy as np
@@ -105,6 +106,40 @@ class PgPlotItem(QObject):
             symbolPen=None)
         self._measureLineMode = self.MEASURE_LINE_NONE
         self._measureLineState = self.MEASURE_LINE_STATE_EMPTY
+
+        self._amendTitle()
+
+    # Amend existing title label
+    def _amendTitle(self):
+        # This is primarily to fix the incorrect stretching of columns due to
+        # pyqtgraph's internal QGraphicsTextItem implementation of the title
+
+        # First remove the original title item
+        self._plotItem.layout.removeItem(self._plotItem.titleLabel) # pyright:ignore
+        # Then replace it with a simple QLabel, which respects the layout better
+        self._plotItem.titleProxy = QtWidgets.QGraphicsProxyWidget() # pyright:ignore
+        self._plotItem.titleLabel = QtWidgets.QLabel('') # pyright:ignore
+        self._plotItem.titleLabel.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        titleColor = pg.mkColor('d').name(QColor.NameFormat.HexArgb)
+        self._plotItem.titleLabel.setStyleSheet( # pyright:ignore
+            f'background: transparent; color: {titleColor};'
+        )
+        self._plotItem.titleLabel.setAlignment(Qt.AlignmentFlag.AlignCenter) # pyright:ignore
+        self._plotItem.titleLabel.setSizePolicy(
+            QtWidgets.QSizePolicy.Policy.Ignored,
+            self._plotItem.titleLabel.sizePolicy().verticalPolicy()
+        )
+        self._plotItem.titleProxy.setSizePolicy( # pyright:ignore
+            QtWidgets.QSizePolicy.Policy.Ignored,
+            self._plotItem.titleProxy.sizePolicy().verticalPolicy() # pyright:ignore
+        )
+        self._plotItem.titleProxy.setWidget(self._plotItem.titleLabel) # pyright:ignore
+        # Enforce the outer layout rather than the label's sizing
+        self._plotItem.titleLabel.setMinimumSize(0, 0)
+        # self._plotItem.titleLabel.setPreferredSize(0, 0)
+        self._plotItem.titleProxy.setMinimumSize(0, 0) # pyright:ignore
+        self._plotItem.titleProxy.setPreferredSize(0, 0) # pyright:ignore
+        self.layout.addItem(self._plotItem.titleProxy, 0, 1) # pyright:ignore
 
     # Forward everything unknown to the original PlotItem
     def __getattr__(self, name):
@@ -1084,14 +1119,17 @@ if __name__ == "__main__":
         # print(f4.plt)
         f4.show()
         data = np.arange(2*2).reshape((2,2)).astype(np.float32)
+        titles = ["A", "AA"*10, "AAA"*10, "AAAA"]
         for (i, j), plt in np.ndenumerate(f4.plts):
             datac = data.copy()
             datac[i,j] = np.nan
             plt.image(datac)
             plt.cbar.setLevels((1,2))
+            plt.setTitle(titles[i*2+j])
             # print(plt.vb.viewPos())
-            print(plt.pos())
+            # print(plt.pos())
             # print(plt.vb.boundingRect())
 
-    forceShow()
+
+    # forceShow()
 
