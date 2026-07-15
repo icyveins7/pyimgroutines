@@ -124,8 +124,8 @@ def CompareImageFiles():
 
     # Helpful check that offsetBytes is defined adequately
     if isinstance(width, tuple) or isinstance(height, tuple):
-        if args.offsetBytes == 0:
-            raise ValueError("--offsetBytes must be > 0 if width/height is to be read from the header")
+        if offsets[0] == 0 or offsets[1] == 0:
+            raise ValueError("--offsetBytes must be > 0 for both files if width/height is to be read from the header")
 
     # Load raw binary data with offset
     print(f"Reading {filepaths[0]}...")
