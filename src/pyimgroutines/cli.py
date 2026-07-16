@@ -16,6 +16,7 @@ def PlotImageFile():
     parser.add_argument("-f", "--filepath", type=str, required=True, help="Path to the binary image file")
     parser.add_argument("-W", "--width", type=str, required=True, help="Width of the image in pixels; you may specify (offsetBytes,dtype) to parse it from the header e.g. -W 4,int32")
     parser.add_argument("-H", "--height", type=str, required=True, help="Height of the image in pixels; you may specify (offsetBytes,dtype) to parse it from the header e.g. -H 8,int32")
+    parser.add_argument("--scale", type=float, default=1.0, help="Scales the output image; useful if a floating point scale is used on an integer-valued image")
     parser.add_argument(
         "--dtype", type=np.dtype, default=np.float32,
         help="NumPy dtype of the data (default: float32)"
@@ -54,6 +55,11 @@ def PlotImageFile():
     print("Header bytes: ")
     print(header)
 
+    # Scale if necessary
+    if args.scale != 1.0:
+        # Use float64 as default floating precision
+        data = data.astype(np.float64) * args.scale
+
     # Estimate colorbar levels using percentiles (robust to invalid values and NaNs)
     lower, upper = np.nanpercentile(data, [35, 65])
 
@@ -89,6 +95,10 @@ def CompareImageFiles():
         help="Comma-separated byte offsets to the first image byte for each file (default: 0,0)"
     )
     parser.add_argument(
+        "--scale", type=str, default="1.0,1.0",
+        help="Comma-separated scales to multiply each image by (default: 1.0,1.0)"
+    )
+    parser.add_argument(
         "--aspectLocked", action="store_true",
         help="Lock aspect ratio (default: False)"
     )
@@ -108,6 +118,11 @@ def CompareImageFiles():
     if len(offsets) != 2:
         raise ValueError("Exactly two comma-separated offsetBytes are required")
     offsets = [int(o) for o in offsets]
+
+    scales = args.scale.split(',')
+    if len(scales) != 2:
+        raise ValueError("Exactly two comma-separated scales are required")
+    scales = [float(s) for s in scales]
 
     if "," in args.width:
         # Return a tuple to use
@@ -139,6 +154,12 @@ def CompareImageFiles():
     print("Done.")
     print(f"Header bytes from {filepaths[1]}: ")
     print(header2)
+
+    # Scale if necessary
+    if scales[0] != 1.0:
+        data1 = data1.astype(np.float64) * scales[0]
+    if scales[1] != 1.0:
+        data2 = data2.astype(np.float64) * scales[1]
 
     # Compute difference (promote to appropriate float type)
     result_dtype = np.result_type(data1, data2, np.float32)
