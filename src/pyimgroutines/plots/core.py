@@ -91,7 +91,7 @@ class PgPlotItem(QObject):
         self._roi.addScaleHandle((1, 1),(0, 0))
         self._roi.sigRegionChangeFinished.connect(self.onROIchangeFinished)
 
-        self._mask = np.zeros((1, 1), dtype=bool)
+        self._mask = np.zeros((1, 1), dtype=np.uint8)
         self._minimap = pg.ImageItem()
 
         self._target = pg.TargetItem(movable=False)
@@ -639,7 +639,7 @@ class PgPlotItem(QObject):
         self._mask = np.logical_and(
             self._imgData >= region[0],
             self._imgData <= region[1]
-        )
+        ).astype(np.uint8)
         self.sigMaskChanged.emit(self._mask)
 
     def linkToLinearRegionItem(self, item: pg.LinearRegionItem):
