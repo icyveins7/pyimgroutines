@@ -5,8 +5,9 @@ def read_image_with_header(
     width: int | tuple[int, type | np.dtype],
     height: int | tuple[int, type | np.dtype] = 1,
     imgDtype: type | np.dtype = np.uint8,
-    offsetBytes: int = 0
-) -> tuple[np.ndarray, np.ndarray]:
+    offsetBytes: int = 0,
+    useMemmap: bool = False
+) -> tuple[np.ndarray | np.memmap, np.ndarray | np.memmap]:
     """
     Convenience function to read and reshape image data
     into an appropriate array from a file.
@@ -36,16 +37,30 @@ def read_image_with_header(
         All bytes from the beginning of the file
         to this are considered the header.
 
+    useMemmap : bool
+        If True, memory-map the file instead of loading it into RAM.
+        This returns read-only views backed by the file. To modify
+        the returned data, first materialize it with ``np.array(x)``.
+
     Returns
     -------
-    img : np.ndarray
+    img : np.ndarray or np.memmap
         Image array with shape (height, width)
         and type imgDtype.
 
-    header : np.ndarray
+    header : np.ndarray or np.memmap
         Header bytes of type uint8.
+
+    Notes
+    -----
+    When ``useMemmap=True`` both ``img`` and ``header`` are read-only
+    views into the memory-mapped file. Writes to them will raise a
+    ``ValueError`` unless you first copy them, e.g. ``img = np.array(img)``.
     """
-    data = np.fromfile(filepath, dtype=np.uint8)
+    if useMemmap:
+        data = np.memmap(filepath, dtype=np.uint8, mode="r")
+    else:
+        data = np.fromfile(filepath, dtype=np.uint8)
     header = data[:offsetBytes]
     if isinstance(width, tuple):
         widthOffsetBytes, widthType = width
