@@ -106,6 +106,7 @@ class PgPlotItem(QObject):
             symbolPen=None)
         self._measureLineMode = self.MEASURE_LINE_NONE
         self._measureLineState = self.MEASURE_LINE_STATE_EMPTY
+        self._measureLineText = pg.TextItem(text="", anchor=(0.5, 0))
 
         self._amendTitle()
 
@@ -683,14 +684,33 @@ class PgPlotItem(QObject):
         elif self._measureLineMode == self.MEASURE_LINE_DARK:
             self._measureLine.setPen("k")
             self._measureLine.setSymbolBrush("k")
+            self._measureLineText.setColor(pg.mkColor("k"))
         elif self._measureLineMode == self.MEASURE_LINE_LIGHT:
             self._measureLine.setPen("w")
             self._measureLine.setSymbolBrush("w")
+            self._measureLineText.setColor(pg.mkColor("w"))
 
     def _removeMeasureLine(self):
         if self._measureLine in self.base.items:
             self.removeItem(self._measureLine)
-            self._measureLineState = self.MEASURE_LINE_STATE_EMPTY
+        if self._measureLineText in self.base.items:
+            self.removeItem(self._measureLineText)
+        self._measureLineState = self.MEASURE_LINE_STATE_EMPTY
+
+    def _updateMeasureLineText(self):
+        x, y = self._measureLine.getData()
+        if x is None or y is None or len(x) < 2:
+            self._measureLineText.setText("")
+            return
+        dist = np.hypot(x[1] - x[0], y[1] - y[0])
+        self._measureLineText.setText(f"{dist:.6g}")
+        self._measureLineText.setPos(0.5 * (x[0] + x[1]), 0.5 * (y[0] + y[1]))
+
+        # Define anchor
+        # Anchor is defined with 0,0 at the top left (text on bottom right)
+        # so y is flipped but x is the same
+        theta = np.arctan2(y[1] - y[0], x[1] - x[0]) + np.pi / 2
+        self._measureLineText.setAnchor((0.5 * np.cos(theta)+0.5, -0.5 * np.sin(theta)+0.5))
 
     def _changeMeasureLine(self, pos: QPointF):
         if self._measureLineMode == self.MEASURE_LINE_NONE:
@@ -703,6 +723,11 @@ class PgPlotItem(QObject):
             )
             # Show the measure line
             self.addItem(self._measureLine)
+            self.addItem(self._measureLineText, ignoreBounds=True)
+            if self._measureLineMode == self.MEASURE_LINE_DARK:
+                self._measureLineText.setColor(pg.mkColor("k"))
+            elif self._measureLineMode == self.MEASURE_LINE_LIGHT:
+                self._measureLineText.setColor(pg.mkColor("w"))
             # Change state
             self._measureLineState = self.MEASURE_LINE_STATE_POINT
 
@@ -713,6 +738,7 @@ class PgPlotItem(QObject):
                 x[1] = pos.x()
                 y[1] = pos.y()
             self._measureLine.setData(x, y)
+            self._updateMeasureLineText()
 
 class PgFigure(QMainWindow):
     """
@@ -1131,5 +1157,5 @@ if __name__ == "__main__":
             # print(plt.vb.boundingRect())
 
 
-    # forceShow()
+    forceShow()
 
