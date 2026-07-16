@@ -41,6 +41,8 @@ fig[0,0].linkToLinearRegionItem(regionItem)
 def updateMaskImg(mask):
     fig[2,0].im.setImage(mask.astype(np.uint8))
 fig[0,0].sigMaskChanged.connect(updateMaskImg)
+fig[2,0].setXLink(fig[0,0])
+fig[2,0].setYLink(fig[0,0])
 
 fig.show()
 forceShow()
