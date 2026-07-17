@@ -3,6 +3,7 @@ from typing import Iterable, Protocol
 from PySide6 import QtWidgets
 from PySide6.QtGui import QBrush, QPen, QTextBlockFormat, QTextCursor, QColor
 import pyqtgraph as pg
+from pyqtgraph.functions import arrayToQPath
 import numpy as np
 from numpy import typing as npt
 from PySide6.QtCore import QPointF, Qt, QRectF, Signal, QObject
@@ -301,6 +302,39 @@ class PgPlotItem(QObject):
                 circle, circlePen,
                 i == len(xy_r) - 1 # update on last one
             )
+        self.addItem(item)
+        return item
+
+    def linesegments(
+        self,
+        x: np.ndarray,
+        y: np.ndarray,
+        pen: QPen | str = "r",
+        label: str | None = None # TODO: add to legend if available
+    ) -> QtWidgets.QGraphicsPathItem:
+        """
+        Plot many disjoint line segments efficiently.
+
+        Parameters
+        ----------
+        x, y : np.ndarray
+            Coordinate arrays. Points are connected as pairs
+            (0-1, 2-3, ...).
+
+        pen : QPen | str
+            Pen or colour string for the segments.
+
+        label : str | None
+            Label for the legend.
+
+        Returns
+        -------
+        item : QGraphicsPathItem
+            The added path item.
+        """
+        path = arrayToQPath(x, y, connect='pairs')
+        item = QtWidgets.QGraphicsPathItem(path)
+        item.setPen(pg.mkPen(pen))
         self.addItem(item)
         return item
 
