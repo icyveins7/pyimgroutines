@@ -10,6 +10,8 @@ from PySide6.QtCore import QPointF, Qt, QRectF, Signal, QObject
 from PySide6.QtWidgets import QApplication, QMessageBox, QMainWindow
 from itertools import repeat
 
+from pyimgroutines.plots._binarycolormap import makeBinaryColormap
+
 from ._keybuffer import KeyBufferCoordinates
 from .customitems import EllipseItem
 
@@ -533,6 +535,36 @@ class PgPlotItem(QObject):
             # Make sure to position it relative to the subplot
             self.repositionMinimap()
 
+    def overlaySegmentsOnImage(
+        self,
+        segments: np.ndarray,
+        color: QColor = pg.mkColor(255,255,255,100)
+    ):
+        offColor = pg.mkColor(0,0,0,0)
+        onColor = pg.mkColor(color)
+        # Requires that the image exists
+        if self._im is None:
+            raise ValueError("Image must be set before overlaying segments")
+        # Create overlay with same shape
+        overlay = np.zeros(self._imgData.shape, dtype=np.uint8)
+        for seg in segments:
+            overlay[seg[0], seg[1]:seg[2]+1] = 1 # +1 because end is inclusive
+        overlayItem = pg.ImageItem(overlay, axisOrder='row-major') # default to row-major instead
+
+        # Retrieve from original image values
+        xywh = [self._btmLeftPos[0],
+                self._btmLeftPos[1],
+                self._pixelSize[0] * self._imgData.shape[1],
+                self._pixelSize[1] * self._imgData.shape[0]]
+        overlayItem.setRect(xywh)
+        overlayItem.setZValue(-1) # TODO: allow setting in args?
+        overlayItem.setAutoDownsample(False)
+
+        overlayItem.setLookupTable(makeBinaryColormap(offColor, onColor).getLookupTable()) # pyright:ignore
+        self.addItem(overlayItem)
+        # TODO: by itself this doesn't really work too well since it's hard to differentiate
+        # against the original image with transparency on
+
     def _rotateCursorMode(self):
         self._cursorMode = (self._cursorMode + 1) % 3
         self._setMouseLabelTextAndPos()
@@ -642,7 +674,7 @@ class PgPlotItem(QObject):
         self.onROIchangeFinished(self._roi) # trigger explicitly for both show/hide
 
     def onROIchangeFinished(self, roi: pg.ROI):
-        if self.im is None:
+        if self._im is None:
             return
 
         roiPos = roi.pos()
@@ -1151,6 +1183,12 @@ if __name__ == "__main__":
     f.plt.setAspectLocked()
     f.plt.rectangle((-1,-1), (cols + 1, rows + 1))
     f.show()
+    # Try overlaying segments
+    segments = np.array([
+        [0, 0, 1],
+        [2, 2, 4]
+    ])
+    f.plt.overlaySegmentsOnImage(segments)
 
     # try custom circles
     ellipseItem = f.plt.ellipses(np.array([[0,0,1,1], [3,3,2,1]]))
