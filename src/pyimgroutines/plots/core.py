@@ -586,7 +586,10 @@ class PgPlotItem(QObject):
         bf.setBackground(QColor(colour.red(), colour.green(), colour.blue(), 128))
         cur.mergeBlockFormat(bf)
 
-    def _getNearestImagePointIndex(self, pos: np.ndarray | None = None) -> np.ndarray | None:
+    def _getNearestImagePointIndex(self, pos: np.ndarray | None = None, enforceInRange: bool = True) -> np.ndarray | None:
+        """
+        Returns an index pair in [X, Y]. Note the direction is reversed!
+        """
         if pos is None:
             pos = self._cursorPos
         # NOTE: cursorPos may be nan/invalid if hovering over another subplot
@@ -595,8 +598,9 @@ class PgPlotItem(QObject):
         offset = pos - self._btmLeftPos
         index = offset / self._pixelSize # this is in x/y
         dataRows, dataCols = self._imgData.shape
-        if np.any(index < 0) or index[0] > dataCols or index[1] > dataRows: # pyright: ignore
-            return None
+        if enforceInRange:
+            if np.any(index < 0) or index[0] > dataCols or index[1] > dataRows: # pyright: ignore
+                return None
         return index.astype(np.int32)
 
     def _getLockedPosition(self):
@@ -671,22 +675,33 @@ class PgPlotItem(QObject):
             self._roi.setPos(centre-wh/2)
             self._roi.setSize(wh)
             self.addItem(self._roi)
-        self.onROIchangeFinished(self._roi) # trigger explicitly for both show/hide
+        self.onROIchangeFinished() # trigger explicitly for both show/hide
 
-    def onROIchangeFinished(self, roi: pg.ROI):
+    def getROIselectedData(self):
         if self._im is None:
             return
-
-        roiPos = roi.pos()
-        roiSize = roi.size()
+        roiPos = self._roi.pos()
+        roiSize = self._roi.size()
         # print(roiPos)
         # print(roiSize)
         # Note that this is X then Y
-        startImgIdx = self._getNearestImagePointIndex(np.array(roiPos))
+        startImgIdx = self._getNearestImagePointIndex(np.array(roiPos), enforceInRange = False)
         endImgIdx = self._getNearestImagePointIndex(
-                np.array(roiPos + roiSize)) + 1 # add 1 to include the final
-        # TODO: handle for corners outside bounds
+            np.array(roiPos + roiSize),
+            enforceInRange = False
+        ) + 1 # add 1 to include the final # pyright:ignore
 
+        if startImgIdx is None or endImgIdx is None:
+            raise ValueError(f"Invalid ROI: {startImgIdx} {endImgIdx}")
+
+        # print(startImgIdx)
+        # print(endImgIdx)
+
+        # handle corners outside bounds
+        startImgIdx[0] = max(startImgIdx[0], 0)
+        startImgIdx[1] = max(startImgIdx[1], 0)
+        endImgIdx[0] = min(endImgIdx[0], self._imgData.shape[1]) # NOTE: idx is in X/Y
+        endImgIdx[1] = min(endImgIdx[1], self._imgData.shape[0]) # hence reversed against shape
         # print(startImgIdx)
         # print(endImgIdx)
 
@@ -695,6 +710,10 @@ class PgPlotItem(QObject):
             selection = np.array([])
         else:
             selection = self._imgData[startImgIdx[1]:endImgIdx[1], startImgIdx[0]:endImgIdx[0]]
+        return selection
+
+    def onROIchangeFinished(self):
+        selection = self.getROIselectedData()
         self.sigROIselectionChangeFinished.emit(selection)
 
     def setMaskFromLinearRegionItem(self, item: pg.LinearRegionItem):
