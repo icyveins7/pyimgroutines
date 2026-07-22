@@ -677,11 +677,31 @@ class PgPlotItem(QObject):
             self.addItem(self._roi)
         self.onROIchangeFinished() # trigger explicitly for both show/hide
 
-    def getROIselectedData(self):
+    def getROIselectedData(self, roi: pg.ROI | None = None) -> np.ndarray | None:
+        """
+        Retrieves image data within a specified ROI.
+
+        Parameters
+        ----------
+        roi : pg.ROI | None
+            The ROI used to define the image data retrieval.
+            Defaults to None, which uses the current figure's ROI;
+            otherwise specify a different custom ROI. This is generally
+            used when taking an ROI from a different subplot, for example.
+
+        Returns
+        -------
+        np.ndarray | None
+            Retrieved image data.
+        """
+        if roi is None:
+            roi = self._roi # Default to self ROI
+
         if self._im is None:
-            return
-        roiPos = self._roi.pos()
-        roiSize = self._roi.size()
+            return None
+
+        roiPos = roi.pos()
+        roiSize = roi.size()
         # print(roiPos)
         # print(roiSize)
         # Note that this is X then Y
@@ -705,16 +725,14 @@ class PgPlotItem(QObject):
         # print(startImgIdx)
         # print(endImgIdx)
 
-        # Only send selection if the ROI is actually active
-        if self._roi not in self.base.items:
-            selection = np.array([])
-        else:
-            selection = self._imgData[startImgIdx[1]:endImgIdx[1], startImgIdx[0]:endImgIdx[0]]
+        selection = self._imgData[startImgIdx[1]:endImgIdx[1], startImgIdx[0]:endImgIdx[0]]
         return selection
 
     def onROIchangeFinished(self):
-        selection = self.getROIselectedData()
-        self.sigROIselectionChangeFinished.emit(selection)
+        # We get the selected data if ROI is on, otherwise None
+        if self._roi in self.base.items:
+            selection = self.getROIselectedData()
+            self.sigROIselectionChangeFinished.emit(selection)
 
     def setMaskFromLinearRegionItem(self, item: pg.LinearRegionItem):
         # TODO: maybe make a custom MaskItem
