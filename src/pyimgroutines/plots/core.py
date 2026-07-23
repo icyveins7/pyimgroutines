@@ -1122,19 +1122,56 @@ t: Toggle targeting crosshair (will follow current magnetization)
         pass
 
     def subplotMaximize(self):
+        """
+        Maximize the currently hovered subplot to fill the whole figure window.
+
+        Removing and re-adding a PlotItem in a GraphicsLayout can change its
+        visible x/y bounds. We snapshot the current view range first and restore
+        it after moving the PlotItem to the full-window cell.
+        """
         i, j = self._currPlotIndex
-        plt = self[i,j].base
+        pgPlt = self[i,j]
+        plt = pgPlt.base
+
+        # Capture the current visible range and linked masters before
+        # moving the PlotItem, so we can put it back exactly afterwards.
+        self._maximizeState = {
+            'index': (i, j),
+            'range': pgPlt.viewRange(),
+            'links': (pgPlt.vb.linkedView(0), pgPlt.vb.linkedView(1)),
+        }
+
         # wipe layout, items are still cached
         self.clear() # pyright:ignore
         self.addItem(plt, row=0, col=0) # pyright: ignore
-        # TODO: for any plot other than 0,0 it seems the xlim/ylim is not retained
+
+        # Restore the captured range in the new full-window cell
+        xRange, yRange = self._maximizeState['range']
+        pgPlt.setRange(xRange=xRange, yRange=yRange, padding=0)
+
         self._isMaximized = True
         self.setWindowTitle(self.windowTitle() + f"[{i},{j}]")
 
     def subplotMinimize(self):
+        """
+        Restore the maximized subplot back into the grid.
+
+        The maximized subplot's visible range may have changed while it filled
+        the whole window (e.g. user zoom/pan or aspect-ratio adjustments). We
+        record its range before rebuilding the grid and restore it afterwards,
+        leaving all other subplots untouched.
+        """
+        maxIdx = self._maximizeState['index']
+        target = self[maxIdx]
+        targetRange = target.viewRange()
+
         self.clear() # pyright:ignore
         for (i, j), plt in np.ndenumerate(self._plts):
             self.addItem(plt.base, row=i, col=j) # pyright:ignore
+
+        xR, yR = targetRange
+        target.setRange(xRange=xR, yRange=yR, padding=0)
+
         self._isMaximized = False
         # Reset the window title
         title = self.windowTitle()
