@@ -33,8 +33,7 @@ fig.setPlotGrid(3, 2)
 # Column 1
 x = np.random.randint(0, 10, 100).reshape((10, 10))
 fig[0, 0].image(x)
-hist = HistogramItem.fromData(x)
-fig[1, 0].addItem(hist)
+hist = fig[1, 0].histogram(x)
 hist.setOpts(pen=pg.mkPen("k"), brush=pg.mkBrush("r"))
 
 dynhist = HistogramItem()
@@ -55,8 +54,7 @@ fig[2, 0].setYLink(fig[0, 0])
 # Column 2
 y = np.random.randint(10, 20, 100).reshape((10, 10))
 fig[0, 1].image(y)
-hist2 = HistogramItem.fromData(y)
-fig[1, 1].addItem(hist2)
+hist2 = fig[1, 1].histogram(y)
 hist2.setOpts(pen=pg.mkPen("k"), brush=pg.mkBrush("b"))
 
 dynhist2 = HistogramItem()

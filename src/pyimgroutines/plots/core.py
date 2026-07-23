@@ -13,7 +13,7 @@ from itertools import repeat
 from pyimgroutines.plots._binarycolormap import makeBinaryColormap
 
 from ._keybuffer import KeyBufferCoordinates
-from .customitems import EllipseItem
+from .customitems import EllipseItem, HistogramItem
 
 def closeAllFigs():
     QApplication.closeAllWindows()
@@ -534,6 +534,20 @@ class PgPlotItem(QObject):
             self.scene().addItem(self._minimap)
             # Make sure to position it relative to the subplot
             self.repositionMinimap()
+
+    def histogram(self, *args, **kwargs) -> HistogramItem:
+        """
+        Creates a HistogramItem from data and adds it to the plot.
+        All arguments are forwarded to HistogramItem.fromData.
+
+        Returns
+        -------
+        item : HistogramItem
+            The added histogram item.
+        """
+        item = HistogramItem.fromData(*args, **kwargs)
+        self.addItem(item)
+        return item
 
     def overlaySegmentsOnImage(
         self,
