@@ -312,7 +312,7 @@ class PgPlotItem(QObject):
         x: np.ndarray,
         y: np.ndarray,
         pen: QPen | str = "r",
-        label: str | None = None # TODO: add to legend if available
+        name: str | None = None
     ) -> QtWidgets.QGraphicsPathItem:
         """
         Plot many disjoint line segments efficiently.
@@ -326,18 +326,32 @@ class PgPlotItem(QObject):
         pen : QPen | str
             Pen or colour string for the segments.
 
-        label : str | None
-            Label for the legend.
+        name : str | None
+            Name for the legend.
 
         Returns
         -------
         item : QGraphicsPathItem
             The added path item.
         """
+        pen = pg.mkPen(pen)
         path = arrayToQPath(x, y, connect='pairs')
         item = QtWidgets.QGraphicsPathItem(path)
-        item.setPen(pg.mkPen(pen))
+        item.setPen(pen)
         self.addItem(item)
+
+        if name is not None:
+            item.opts = { # pyright:ignore
+                "pen": pen,
+                "fillLevel": None,
+                "fillBrush": None,
+                "symbol": None,
+            }
+            legend = self.legend
+            if legend is None:
+                legend = self.addLegend()
+            legend.addItem(item, name)
+
         return item
 
 
