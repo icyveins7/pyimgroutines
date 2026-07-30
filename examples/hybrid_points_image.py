@@ -14,6 +14,8 @@ fig[0, 0].image(
     image,
     xywh=xywh,
     addHalfPixelBorder=False,
+    cmap = None,
+    colorbar = False,
 )
 fig[1, 0].scatterPlot(
     points[:, 0],

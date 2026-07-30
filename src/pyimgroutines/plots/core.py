@@ -491,13 +491,17 @@ class PgPlotItem(QObject):
                     np.max(yMesh) - np.min(yMesh) + pixelHeight
                 ]
 
+        # Pixel spacing must be derived from xywh even when no half-pixel
+        # border is added; the default values of 1 are only valid for the
+        # implicit one-unit-per-pixel image bounds.
+        pixelWidth = xywh[2] / arr.shape[1]
+        pixelHeight = xywh[3] / arr.shape[0]
+
         # Centres each pixel on the grid coordinates (instead of corners)
         if addHalfPixelBorder:
-            pixelWidth = xywh[2] / arr.shape[1]
-            pixelHeight = xywh[3] / arr.shape[0]
             xywh[0] -= 0.5 * pixelWidth
             xywh[1] -= 0.5 * pixelHeight
-            self._addHalfPixelBorder = addHalfPixelBorder
+        self._addHalfPixelBorder = addHalfPixelBorder
 
         # Cache these for mouse-over mechanics
         self._btmLeftPos[0] = xywh[0]
@@ -635,10 +639,11 @@ class PgPlotItem(QObject):
         index = self._getNearestImagePointIndex()
         if index is None:
             return None, None
-        if self._addHalfPixelBorder:
-            bottomLeftPointerPos = self._btmLeftPos + self._pixelSize * 0.5
-        else:
-            bottomLeftPointerPos = self._btmLeftPos
+
+        # _btmLeftPos is the image rectangle corner in both modes. Pixel
+        # indices refer to pixel cells, so the locked position is always at
+        # the centre of the selected cell, half a pixel from that corner.
+        bottomLeftPointerPos = self._btmLeftPos + self._pixelSize * 0.5
         return index * self._pixelSize + bottomLeftPointerPos, index
 
     def _replaceMouseLabelText(self, newtext: str):
