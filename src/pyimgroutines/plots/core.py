@@ -13,7 +13,7 @@ from itertools import repeat
 from pyimgroutines.plots._binarycolormap import makeBinaryColormap
 
 from ._keybuffer import KeyBufferCoordinates
-from .customitems import EllipseItem, HistogramItem
+from .customitems import EllipseItem, HistogramItem, HybridScatterItem
 
 def closeAllFigs():
     QApplication.closeAllWindows()
@@ -81,6 +81,7 @@ class PgPlotItem(QObject):
         self._cbar = pg.ColorBarItem()
         self._lockedPointing = False
         self._addHalfPixelBorder = False
+        self._hybridScatters = []
 
         self._roi = pg.ROI((0, 0),
                            movable=True,
@@ -566,6 +567,57 @@ class PgPlotItem(QObject):
         item = HistogramItem.fromData(*args, **kwargs)
         self.addItem(item)
         return item
+
+    def hybridscatter(
+        self,
+        points: np.ndarray,
+        tile_size,
+        img_dims=(2048, 2048),
+        img_xywh=None,
+        max_tile_span: int = 3,
+        symbol="o",
+        brush="w",
+    ) -> HybridScatterItem:
+        """
+        Create and add a hybrid coarse-image/raw-tile scatter representation.
+        """
+        # TODO: add more detail to docstring
+        item = HybridScatterItem(
+            points,
+            tile_size,
+            img_dims=img_dims,
+            img_xywh=img_xywh,
+            max_tile_span=max_tile_span,
+            symbol=symbol,
+            brush=brush,
+        )
+        self._hybridScatters.append(item)
+        self.addItem(item.coarseimg)
+        self.addItem(item.scatter)
+        self.vb.sigRangeChanged.connect(self._mutateHybridScatters)
+        self._mutateHybridScatters()
+        return item
+
+    def _mutateHybridScatters(self, *args):
+        # TODO: add more detailed explanations
+        view_range = self.viewRange()
+        # print(f"PgPlotItem._mutateHybridScatters: view_range={view_range}")
+        x_range, y_range = view_range
+
+        for item in self._hybridScatters:
+            tile_indices = item.grid.getTileIndicesOverlappingBox(
+                x_range[0], y_range[0], x_range[1], y_range[1]
+            )
+            if len(tile_indices) == 0:
+                item.showCoarse()
+                continue
+
+            tile_span = np.ptp(tile_indices, axis=0) + 1
+            if np.all(tile_span <= item.max_tile_span):
+                item.setRawTiles(tile_indices)
+                item.showRaw()
+            else:
+                item.showCoarse()
 
     def overlaySegmentsOnImage(
         self,
