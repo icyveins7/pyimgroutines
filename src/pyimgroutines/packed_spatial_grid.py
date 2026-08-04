@@ -55,6 +55,7 @@ class PackedSpatialGrid:
 
         # 2. Sort points by their tile ID to create the packed buffer
         sorted_indices = np.argsort(tile_ids)
+        self._sort_order = sorted_indices
         self._point_buffer = points[sorted_indices]
         self._point_tile_indices = self._point_tile_indices[sorted_indices]
         sorted_tile_ids = tile_ids[sorted_indices]
@@ -137,6 +138,15 @@ class PackedSpatialGrid:
 
         start_offset, count = self._lut[y_idx, x_idx]
         return self._point_buffer[start_offset : start_offset + count]
+
+    @property
+    def sort_order(self) -> np.ndarray:
+        """
+        Return the permutation that maps original point indices to their
+        packed-buffer order.  If ``v`` is a vector tied to the points,
+        use ``v[self.sort_order]`` to rearrange it identically.
+        """
+        return self._sort_order.copy()
 
     def getTileCount(self, tileIdx: np.ndarray | None) -> int | None:
         """
@@ -243,3 +253,13 @@ if __name__ == "__main__":
 
     print("Box covering the extra empty column:")
     print(grid.getTileIndicesOverlappingBox(110, 10, 160, 160))
+
+    # Verify sort_order: original indices [0,1,2,3,4,5] should map to packed order
+    # Tile (0,0): point 0 -> packed[0]
+    # Tile (1,0): points 1,3 -> packed[1], packed[2]
+    # Tile (0,1): points 2,5 -> packed[3], packed[4]
+    # Tile (1,1): point 4 -> packed[5]
+    so = grid.sort_order
+    print(f"\nSort order (original->packed indices): {so}")
+    print(f"Original points:\n{raw_points}")
+    print(f"Packed buffer (raw_points[sort_order]):\n{raw_points[so]}")
