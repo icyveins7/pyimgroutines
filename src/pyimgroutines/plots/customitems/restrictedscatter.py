@@ -1,13 +1,15 @@
+from PySide6.QtCore import QObject, Signal
 import numpy as np
 import pyqtgraph as pg
 from ...packed_spatial_grid import PackedSpatialGrid
 
-class RestrictedScatterItem:
+class RestrictedScatterItem(QObject):
     """
     Scatter plot that only displays raw points when the viewbox is zoomed in
     sufficiently (i.e. the visible tile span is within a threshold).
     At coarser zoom levels the scatter is hidden entirely.
     """
+    sigTilesChanged = Signal()
 
     def __init__(
         self,
@@ -17,6 +19,7 @@ class RestrictedScatterItem:
         symbol="o",
         brush="w",
     ):
+        super().__init__()
         points = np.asarray(points)
         if points.ndim != 2 or points.shape[1] != 2:
             raise ValueError("points must have shape (N, 2)")
@@ -77,12 +80,13 @@ class RestrictedScatterItem:
         else:
             points = np.empty((0, 2), dtype=self._grid.point_buffer.dtype)
 
-        print(f"RestrictedScatterItem.setRawTiles: {tile_indices}, total {len(points)}")
+        # print(f"RestrictedScatterItem.setRawTiles: {tile_indices}, total {len(points)}")
         self._scatter.setData(
             x=points[:, 0],
             y=points[:, 1],
         )
         self._active_tile_indices = tile_indices.copy()
+        self.sigTilesChanged.emit()
 
     def showRaw(self):
         if not self._showing_raw:

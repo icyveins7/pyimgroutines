@@ -15,6 +15,13 @@ restricted = fig.plt.restrictedscatter(
     symbol="o",
     brush="r",
 )
+
+def on_tiles_changed():
+    idx = restricted.active_tile_indices
+    print(idx)
+
+restricted.sigTilesChanged.connect(on_tiles_changed)
+
 fig.plt.rectangle([np.min(points[:, 0]), np.min(points[:, 1])],
                   [np.max(points[:,0])-np.min(points[:, 0]), np.max(points[:, 1])-np.min(points[:, 1])])
 print(f"Restricted scatter: {restricted.grid.num_tiles_y} x {restricted.grid.num_tiles_x} tiles")

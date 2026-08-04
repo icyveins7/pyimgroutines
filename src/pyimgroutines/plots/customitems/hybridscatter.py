@@ -1,12 +1,14 @@
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtCore import QRectF
+from PySide6.QtCore import QObject, Signal, QRectF
 
 from ...packed_spatial_grid import PackedSpatialGrid
 from ...point_raster import points_to_image
 
 
-class HybridScatterItem:
+class HybridScatterItem(QObject):
+    sigTilesChanged = Signal()
+
     """
     Controller for a coarse image and a tile-backed raw scatter plot.
     """
@@ -21,6 +23,7 @@ class HybridScatterItem:
         symbol="o",
         brush="w",
     ):
+        super().__init__()
         points = np.asarray(points)
         if points.ndim != 2 or points.shape[1] != 2:
             raise ValueError("points must have shape (N, 2)")
@@ -100,6 +103,7 @@ class HybridScatterItem:
             y=points[:, 1],
         )
         self._active_tile_indices = tile_indices.copy()
+        self.sigTilesChanged.emit()
 
     def showCoarse(self):
         if not self._showing_coarse:
