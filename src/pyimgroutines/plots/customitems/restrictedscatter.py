@@ -91,13 +91,13 @@ class RestrictedScatterItem(QObject):
         self.sigTilesChanged.emit()
 
     def showRaw(self):
-        if not self._showing_raw:
-            print("RestrictedScatterItem.showRaw")
+        # if not self._showing_raw:
+        #     print("RestrictedScatterItem.showRaw")
         self._scatter.show()
         self._showing_raw = True
 
     def hideRaw(self):
-        if self._showing_raw:
-            print("RestrictedScatterItem.hideRaw")
+        # if self._showing_raw:
+        #     print("RestrictedScatterItem.hideRaw")
         self._scatter.hide()
         self._showing_raw = False

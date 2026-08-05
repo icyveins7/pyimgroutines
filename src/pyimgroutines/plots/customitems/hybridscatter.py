@@ -99,7 +99,7 @@ class HybridScatterItem(QObject):
         else:
             points = np.empty((0, 2), dtype=self._grid.point_buffer.dtype)
 
-        print(f"HybridScatterItem.setRawTiles: {tile_indices}, total {len(points)}")
+        # print(f"HybridScatterItem.setRawTiles: {tile_indices}, total {len(points)}")
         self._scatter.setData(
             x=points[:, 0],
             y=points[:, 1],
@@ -108,15 +108,15 @@ class HybridScatterItem(QObject):
         self.sigTilesChanged.emit()
 
     def showCoarse(self):
-        if not self._showing_coarse:
-            print("HybridScatterItem.showCoarse")
+        # if not self._showing_coarse:
+        #     print("HybridScatterItem.showCoarse")
         self._coarseimg.show()
         self._scatter.hide()
         self._showing_coarse = True
 
     def showRaw(self):
-        if self._showing_coarse:
-            print("HybridScatterItem.showRaw")
+        # if self._showing_coarse:
+        #     print("HybridScatterItem.showRaw")
         self._coarseimg.hide()
         self._scatter.show()
         self._showing_coarse = False
