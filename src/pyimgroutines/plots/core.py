@@ -578,6 +578,7 @@ class PgPlotItem(QObject):
         max_tile_span: int = 3,
         symbol="o",
         brush="w",
+        name=None,
     ) -> HybridScatterItem:
         """
         Create and add a hybrid coarse-image/raw-tile scatter representation.
@@ -591,6 +592,7 @@ class PgPlotItem(QObject):
             max_tile_span=max_tile_span,
             symbol=symbol,
             brush=brush,
+            name=name,
         )
         self._hybridScatters.append(item)
         self.addItem(item.coarseimg)
@@ -627,6 +629,7 @@ class PgPlotItem(QObject):
         max_tile_span: int = 3,
         symbol="o",
         brush="w",
+        name=None,
     ) -> RestrictedScatterItem:
         """
         Create and add a scatter that only appears when zoomed in sufficiently.
@@ -638,6 +641,7 @@ class PgPlotItem(QObject):
             max_tile_span=max_tile_span,
             symbol=symbol,
             brush=brush,
+            name=name,
         )
         self._restrictedScatters.append(item)
         self.addItem(item.scatter)

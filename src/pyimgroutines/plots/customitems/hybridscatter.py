@@ -22,6 +22,7 @@ class HybridScatterItem(QObject):
         max_tile_span: int = 3,
         symbol="o",
         brush="w",
+        name=None,
     ):
         super().__init__()
         points = np.asarray(points)
@@ -44,6 +45,7 @@ class HybridScatterItem(QObject):
             pen=None,
             symbol=symbol,
             brush=brush,
+            name=name,
         )
         self._scatter.setZValue(0)
         self._scatter.hide()

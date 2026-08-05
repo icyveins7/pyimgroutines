@@ -8,12 +8,14 @@ from pyimgroutines.point_raster import points_to_image
 points = np.random.randn(500000, 2)
 
 fig = PgFigure()
+fig.plt.addLegend()
 restricted = fig.plt.restrictedscatter(
     points,
     tile_size=(0.2, 0.2),
     max_tile_span=3,
     symbol="o",
     brush="r",
+    name="Restricted scatter",
 )
 
 def on_tiles_changed():
