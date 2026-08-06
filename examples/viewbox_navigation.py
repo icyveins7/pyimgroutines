@@ -1,6 +1,7 @@
 import numpy as np
 import pyqtgraph as pg
 
+from pyimgroutines.aabb import bounding_box
 from pyimgroutines.plots import PgFigure, forceShow
 
 
@@ -21,14 +22,7 @@ for group_index, points in enumerate(groups):
 
 
 def view_box(index):
-    points = groups[index]
-    lower = np.min(points, axis=0)
-    upper = np.max(points, axis=0)
-    span = np.maximum(upper - lower, 0.05)
-    margin = 0.25 * span
-    view_box = ((lower[0] - margin[0], upper[0] + margin[0]),
-                (lower[1] - margin[1], upper[1] + margin[1]))
-    return view_box, len(groups)
+    return bounding_box(groups[index], padding_factor=0.25), len(groups)
 
 
 fig.plt.setViewBoxFunction(view_box)
