@@ -1,4 +1,5 @@
 import numpy as np
+import pyqtgraph as pg
 
 from pyimgroutines.plots import PgFigure, forceShow
 
@@ -14,7 +15,7 @@ for group_index, points in enumerate(groups):
         points[:, 1],
         pen=None,
         symbol="o",
-        symbolBrush="r",
+        brush=pg.intColor(group_index),
         name=f"Group {group_index + 1}",
     )
 

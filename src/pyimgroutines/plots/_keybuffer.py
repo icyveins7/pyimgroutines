@@ -55,6 +55,14 @@ class KeyBuffer(QObject):
         self.bufferChanged.emit()
         return s
 
+    def flushInteger(self) -> int | None:
+        """Flush and parse the buffer as an integer, returning None if invalid."""
+        value = self.flushString()
+        try:
+            return int(value)
+        except ValueError:
+            return None
+
 class KeyBufferCoordinates(KeyBuffer):
     def __init__(self):
         # Accept comma, period, minus, all digits

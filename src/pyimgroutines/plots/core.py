@@ -273,6 +273,41 @@ class PgPlotItem(QObject):
         self._parent._onViewBoxChanged(index, self._viewBoxCount)
         self.zoomTo(viewBox)
 
+    def navigateViewBoxTo(self, index: int):
+        """Jump directly to a zero-based view-box index if it is in range."""
+        if (
+            self._viewBoxFunction is None
+            or index < 0
+            or (
+                self._viewBoxCount is not None
+                and index >= self._viewBoxCount
+            )
+        ):
+            return
+
+        try:
+            result = self._viewBoxFunction(index)
+        except IndexError:
+            return
+
+        if (
+            isinstance(result, tuple)
+            and len(result) == 2
+            and isinstance(result[1], int)
+        ):
+            viewBox, count = result
+            if count <= 0 or index >= count:
+                return
+            self._viewBoxCount = count
+        else:
+            viewBox = result
+
+        if viewBox is None:
+            return
+        self._viewBoxIndex = index
+        self._parent._onViewBoxChanged(index, self._viewBoxCount)
+        self.zoomTo(viewBox)
+
     def ellipses(
         self,
         xy_rxry: np.ndarray,
@@ -1206,6 +1241,11 @@ class PgFigure(QMainWindow):
                 lower = origLower if lower is None else lower
                 upper = origUpper if upper is None else upper
                 curPlt.cbar.setLevels((lower, upper))
+            # GN: jump to a one-based view-box index
+            elif ev.key() == Qt.Key.Key_N:
+                index = self._keybuffer.flushInteger()
+                if index is not None:
+                    curPlt.navigateViewBoxTo(index - 1)
             # Always unfreeze at the end
             self._keybuffer.unfreeze()
         # Normal key handling (not frozen)
@@ -1286,6 +1326,7 @@ a: Toggle aspect ratio lock
 r: Toggle ROI
 t: Toggle targeting crosshair (will follow current magnetization)
 n/N: Go to next/previous predefined view box
+<number>gn: Go to a specific predefined view box
 """
         helpbox.setText(helpText)
         return helpbox
