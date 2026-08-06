@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Iterable, Protocol
+from typing import Callable, Iterable, Protocol
 from PySide6 import QtWidgets
 from PySide6.QtGui import QBrush, QPen, QTextBlockFormat, QTextCursor, QColor
 import pyqtgraph as pg
@@ -81,8 +81,13 @@ class PgPlotItem(QObject):
         self._cbar = pg.ColorBarItem()
         self._lockedPointing = False
         self._addHalfPixelBorder = False
+        # Custom scatter items
         self._hybridScatters = []
         self._restrictedScatters = []
+        # Viewbox jumping
+        self._viewBoxFunction = None
+        self._viewBoxIndex = -1
+        self._viewBoxCount = None
 
         self._roi = pg.ROI((0, 0),
                            movable=True,
@@ -221,6 +226,52 @@ class PgPlotItem(QObject):
         self.setRange(xRange=finalRanges[0],
                       yRange=finalRanges[1],
                       padding=0)
+
+    def setViewBoxFunction(
+        self,
+        function: Callable[[int], tuple[tuple[float, float], tuple[float, float]] | tuple[tuple[tuple[float, float], tuple[float, float]], int]] | None,
+    ):
+        """
+        Assign a function that supplies a predefined view box by index.
+
+        The function is called as ``function(index)`` when ``n`` or ``N`` is
+        pressed. It must return a view box in the form
+        ``((xmin, xmax), (ymin, ymax))``. It may instead return
+        ``(viewBox, count)`` to provide the total number of view boxes and
+        enable wrapping between the first and last view boxes.
+        """
+        self._viewBoxFunction = function
+        self._viewBoxIndex = -1
+        self._viewBoxCount = None
+        self._parent._onViewBoxChanged(None, None)
+
+    def navigateViewBox(self, step: int):
+        """Move to the next or previous view box supplied by the callback."""
+        if self._viewBoxFunction is None:
+            return
+
+        index = self._viewBoxIndex + step
+        if self._viewBoxCount is not None:
+            index %= self._viewBoxCount
+        elif index < 0:
+            return
+
+        result = self._viewBoxFunction(index)
+        if (
+            isinstance(result, tuple)
+            and len(result) == 2
+            and isinstance(result[1], int)
+        ):
+            viewBox, count = result
+            if count <= 0:
+                return
+            self._viewBoxCount = count
+        else:
+            viewBox = result
+
+        self._viewBoxIndex = index
+        self._parent._onViewBoxChanged(index, self._viewBoxCount)
+        self.zoomTo(viewBox)
 
     def ellipses(
         self,
@@ -1030,6 +1081,8 @@ class PgFigure(QMainWindow):
 
         self._keybuffer = KeyBufferCoordinates()
         self._keybuffer.bufferChanged.connect(self._onKeyBufferChanged)
+        self._viewBoxStatus = QtWidgets.QLabel("")
+        self.statusBar().addPermanentWidget(self._viewBoxStatus)
 
     # Forward unknown attributes to the graphics widget
     def __getattr__(self, name):
@@ -1202,6 +1255,9 @@ class PgFigure(QMainWindow):
         elif ev.key() == Qt.Key.Key_O:
             # Toggle measure line
             curPlt._toggleMeasureLineMode()
+        elif ev.key() == Qt.Key.Key_N:
+            # Navigate runtime-supplied predefined view boxes
+            curPlt.navigateViewBox(-1 if ev.text() == "N" else 1)
         else:
             # Key not handled by us, let Qt propagate it
             return super().keyPressEvent(ev)
@@ -1229,6 +1285,7 @@ b: Toggle status bar
 a: Toggle aspect ratio lock
 r: Toggle ROI
 t: Toggle targeting crosshair (will follow current magnetization)
+n/N: Go to next/previous predefined view box
 """
         helpbox.setText(helpText)
         return helpbox
@@ -1369,6 +1426,12 @@ t: Toggle targeting crosshair (will follow current magnetization)
     def _onKeyBufferChanged(self):
         s = self._keybuffer.string
         self.statusBar().showMessage(s)
+
+    def _onViewBoxChanged(self, index: int | None, count: int | None):
+        if index is None or count is None:
+            self._viewBoxStatus.clear()
+        else:
+            self._viewBoxStatus.setText(f"{index + 1}/{count}")
 
 
 if __name__ == "__main__":
