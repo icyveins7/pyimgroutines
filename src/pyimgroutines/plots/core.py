@@ -783,7 +783,15 @@ class PgPlotItem(QObject):
         # against the original image with transparency on
 
     def _rotateCursorMode(self):
-        self._cursorMode = (self._cursorMode + 1) % 3
+        if self._im is None:
+            # Plots without images only support position and hidden-label modes.
+            self._cursorMode = (
+                self.CURSOR_SHOW_NONE
+                if self._cursorMode == self.CURSOR_SHOW_POS
+                else self.CURSOR_SHOW_POS
+            )
+        else:
+            self._cursorMode = (self._cursorMode + 1) % 3
         self._setMouseLabelTextAndPos()
 
     def _toggleTextColour(self):
@@ -816,7 +824,7 @@ class PgPlotItem(QObject):
         index = offset / self._pixelSize # this is in x/y
         dataRows, dataCols = self._imgData.shape
         if enforceInRange:
-            if np.any(index < 0) or index[0] > dataCols or index[1] > dataRows: # pyright: ignore
+            if np.any(index < 0) or index[0] >= dataCols or index[1] >= dataRows: # pyright: ignore
                 return None
         return index.astype(np.int32)
 
@@ -854,6 +862,11 @@ class PgPlotItem(QObject):
             if self._cursorMode == self.CURSOR_SHOW_POS:
                 self._replaceMouseLabelText(f"{pos[0]:.6g}, {pos[1]:.6g}")
             elif self._cursorMode == self.CURSOR_SHOW_VALUE:
+                # Defensive guard for stale value mode if an image is absent or empty.
+                if self._im is None or self._imgData.size == 0:
+                    self._replaceMouseLabelText("")
+                    return
+
                 index = self._getNearestImagePointIndex() # pyright: ignore
                 if index is None:
                     self._replaceMouseLabelText(f"OOB") # pyright: ignore
