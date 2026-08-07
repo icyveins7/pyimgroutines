@@ -1429,13 +1429,10 @@ n/N: Go to next/previous predefined view box
                 for j in range(self._plts.shape[1]):
                     plt = self._plts[i,j]
 
-                    # TODO: eventually allow mouse cursor updates only for coordinates
-                    # if no image is present?
                     if plt.sceneBoundingRect().contains(evt): # pyright: ignore
                         # Cache that this is the currently hovered plot
                         self._currPlotIndex[:] = [i, j]
-                        if plt.im is not None:
-                            curPlt = plt
+                        curPlt = plt
                         # print(f"in {i},{j}")
                         found = True
                         break
