@@ -18,7 +18,9 @@ class RestrictedScatterItem(QObject):
         max_tile_span: int = 3,
         symbol="o",
         brush="w",
+        pen=None,
         name=None,
+        **kwargs
     ):
         super().__init__()
         points = np.asarray(points)
@@ -29,10 +31,11 @@ class RestrictedScatterItem(QObject):
 
         self._grid = PackedSpatialGrid(points, tile_size)
         self._scatter = pg.ScatterPlotItem(
-            pen=None,
+            pen=pen,
             symbol=symbol,
             brush=brush,
             name=name,
+            **kwargs
         )
         self._scatter.setZValue(0)
         self._scatter.hide()

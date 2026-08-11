@@ -719,7 +719,9 @@ class PgPlotItem(QObject):
         max_tile_span: int = 3,
         symbol="o",
         brush="w",
+        pen=None,
         name=None,
+        **kwargs
     ) -> RestrictedScatterItem:
         """
         Create and add a scatter that only appears when zoomed in sufficiently.
@@ -731,7 +733,9 @@ class PgPlotItem(QObject):
             max_tile_span=max_tile_span,
             symbol=symbol,
             brush=brush,
+            pen=pen,
             name=name,
+            **kwargs
         )
         self._restrictedScatters.append(item)
         self.addItem(item.scatter)
