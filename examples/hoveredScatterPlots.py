@@ -8,6 +8,9 @@ closeAllFigs()
 import numpy as np
 import pyqtgraph as pg
 
+# Doesn't really change anything
+# pg.setConfigOptions(antialias=False)
+
 # At this number of points, rendering overhead still dominates
 # everything.
 length = 500000
@@ -45,6 +48,8 @@ item = pg.ScatterPlotItem(
     x=x,
     y=y,
     brush='r',
+    pen=None,
+    symbol='x',
     size=10,
     hoverable=True,
     tip=None,
@@ -59,6 +64,8 @@ item2 = NearestScatterPlotItem(
     x=x,
     y=y,
     brush='r',
+    pen=None,
+    symbol='x',
     size=10,
     hoverable=True,
     tip=None,
