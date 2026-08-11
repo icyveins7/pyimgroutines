@@ -32,7 +32,8 @@ fig2 = PgFigure()
 hybrid = fig2[0,0].hybridscatter(
     points,
     tile_size=(0.25, 0.25),
-    img_dims=(4096, 4096),
+    img_dims=(8192, 8192),
+    hoverable=True
 )
 print(f"Using {hybrid.grid.num_tiles_y} x {hybrid.grid.num_tiles_x} tiles")
 print(f"Max tile count: {hybrid.grid.max_tile_count}")

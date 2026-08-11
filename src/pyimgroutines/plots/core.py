@@ -664,7 +664,9 @@ class PgPlotItem(QObject):
         max_tile_span: int = 3,
         symbol="o",
         brush="w",
+        pen=None,
         name=None,
+        **kwargs
     ) -> HybridScatterItem:
         """
         Create and add a hybrid coarse-image/raw-tile scatter representation.
@@ -678,7 +680,9 @@ class PgPlotItem(QObject):
             max_tile_span=max_tile_span,
             symbol=symbol,
             brush=brush,
+            pen=pen,
             name=name,
+            **kwargs
         )
         self._hybridScatters.append(item)
         self.addItem(item.coarseimg)

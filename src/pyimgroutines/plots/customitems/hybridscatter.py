@@ -22,7 +22,9 @@ class HybridScatterItem(QObject):
         max_tile_span: int = 3,
         symbol="o",
         brush="w",
+        pen=None,
         name=None,
+        **kwargs
     ):
         super().__init__()
         points = np.asarray(points)
@@ -42,10 +44,11 @@ class HybridScatterItem(QObject):
         self._coarseimg.setZValue(-100)
 
         self._scatter = pg.ScatterPlotItem(
-            pen=None,
+            pen=pen,
             symbol=symbol,
             brush=brush,
             name=name,
+            **kwargs
         )
         self._scatter.setZValue(0)
         self._scatter.hide()
