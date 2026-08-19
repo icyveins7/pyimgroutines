@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Callable, Iterable, Protocol
+from typing import Any, Callable, Iterable, Protocol
 from PySide6 import QtWidgets
 from PySide6.QtGui import QBrush, QPen, QTextBlockFormat, QTextCursor, QColor
 import pyqtgraph as pg
@@ -155,6 +155,27 @@ class PgPlotItem(QObject):
     # Forward everything unknown to the original PlotItem
     def __getattr__(self, name):
         return getattr(self._plotItem, name)
+
+    def scatterPlot(self, *args: Any, **kwargs: Any) -> pg.PlotDataItem:
+        """Create a scatter plot and add it to this subplot.
+
+        This explicit forwarding method primarily exposes the dynamically
+        delegated API to static tooling such as Pyright and language servers.
+
+        Parameters
+        ----------
+        *args : Any
+            Positional arguments forwarded to the underlying pyqtgraph plot.
+        **kwargs : Any
+            Keyword arguments forwarded to the underlying pyqtgraph scatter plot.
+            The ``pen``, ``brush``, and ``size`` aliases are supported.
+
+        Returns
+        -------
+        pg.PlotDataItem
+            The newly created scatter plot item.
+        """
+        return self._plotItem.scatterPlot(*args, **kwargs)
 
     @property
     def base(self) -> pg.PlotItem:
