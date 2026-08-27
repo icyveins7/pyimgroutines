@@ -1429,6 +1429,7 @@ b: Toggle status bar
 a: Toggle aspect ratio lock
 r: Toggle ROI
 t: Toggle targeting crosshair (will follow current magnetization)
+x: Add/remove annotation over current pixel
 n/N: Go to next/previous predefined view box
 <number>gn: Go to a specific predefined view box
 """
