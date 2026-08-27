@@ -1549,15 +1549,27 @@ class PgFigure(QMainWindow):
         helpText = """
 h: Show this help window
 v: Rotate cursor's text modes (position / data / none)
-c: Rotate cursor's text colours
+c: Toggle cursor text colour
 l: Toggle magnetized cursor locks
 b: Toggle status bar
 a: Toggle aspect ratio lock
+i: Toggle image visibility
 r: Toggle ROI
 t: Toggle targeting crosshair (will follow current magnetization)
+o: Toggle measure line
 x: Add/remove annotation over current pixel
+Esc: Restore all subplots when maximized
 n/N: Go to next/previous predefined view box
 <number>gn: Go to a specific predefined view box
+
+gg: Zoom to coordinates; enter x,y before pressing g
+   Each coordinate may be a point (x), range (x1:x2), or empty
+   (for example: 100,200 or 50:150,)
+<low>:<high>gc: Change the colorbar range; enter lower:upper before pressing c
+   Either bound may be empty (for example: :100 or 0.1:)
+<low>:<high>gz: Add regions for y values within an inclusive range
+   Enter lower:upper before pressing z; either bound may be empty
+gx: Remove all ranged linear regions
 """
         helpbox.setText(helpText)
         return helpbox
