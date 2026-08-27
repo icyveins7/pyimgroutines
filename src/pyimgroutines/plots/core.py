@@ -92,6 +92,7 @@ class PgPlotItem(QObject):
         self._annotations = dict()
         # Threshold regions
         self._rangedLinearRegions = list()
+        self._rangedLinearRegionColourCount = 0
 
         self._roi = pg.ROI((0, 0),
                            movable=True,
@@ -1451,7 +1452,9 @@ class PgFigure(QMainWindow):
                         (pg.mkPen("g"), pg.mkBrush(0,255,0,50)),
                         (pg.mkPen("b"), pg.mkBrush(0,0,255,50)),
                     )
-                    ci = len(curPlt._rangedLinearRegions) % len(colorScheme) # rotate colours simply
+                    ci = curPlt._rangedLinearRegionColourCount % len(colorScheme) # rotate colours simply
+                    curPlt._rangedLinearRegionColourCount += 1
+
                     curPlt._rangedLinearRegions.extend(curPlt.rangedLinearRegion(
                         x, y, lowerBound=lower, upperBound=upper,
                         pen=colorScheme[ci][0], brush=colorScheme[ci][1]
