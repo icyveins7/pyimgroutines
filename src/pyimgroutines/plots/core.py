@@ -90,6 +90,8 @@ class PgPlotItem(QObject):
         self._viewBoxCount = None
         # Annotations
         self._annotations = dict()
+        # Threshold regions
+        self._rangedLinearRegions = list()
 
         self._roi = pg.ROI((0, 0),
                            movable=True,
@@ -464,6 +466,103 @@ class PgPlotItem(QObject):
             legend.addItem(item, name)
 
         return item
+
+    def rangedLinearRegion(
+        self,
+        x: np.ndarray,
+        y: np.ndarray,
+        lowerBound: float | None = None,
+        upperBound: float | None = None,
+        pen: QPen | str = "r",
+        brush: QBrush | str | None = None,
+    ) -> list[pg.LinearRegionItem]:
+        """
+        Add immovable linear region items where y values are within a range.
+        This is primarily for line plots, not image plots.
+
+        Creates one or more LinearRegionItem instances covering x ranges where
+        the corresponding y values are within the inclusive bounds. Consecutive
+        points in range are grouped into a single region.
+
+        Parameters
+        ----------
+        x : np.ndarray
+            X coordinate array.
+
+        y : np.ndarray
+            Y coordinate array, same length as x.
+
+        lowerBound : float | None
+            Inclusive lower y bound. If None, no lower bound is applied.
+
+        upperBound : float | None
+            Inclusive upper y bound. If None, no upper bound is applied.
+
+        pen : QPen | str
+            Pen or colour string for the region borders. Defaults to "r" (red).
+
+        brush : QBrush | str | None
+            Brush or colour string for the region fill. Defaults to None (no fill).
+
+        Returns
+        -------
+        items : list[pg.LinearRegionItem]
+            List of created LinearRegionItem instances.
+        """
+        if len(x) != len(y):
+            raise ValueError("x and y must have the same length")
+        if lowerBound is not None and upperBound is not None and lowerBound > upperBound:
+            raise ValueError("lowerBound must not exceed upperBound")
+
+        if lowerBound is None and upperBound is None:
+            raise ValueError("Must specify at least either upper or lower bound!")
+        elif lowerBound is None:
+            mask = y <= upperBound
+        elif upperBound is None:
+            mask = y >= lowerBound
+        else:
+            mask = (lowerBound <= y) & (y <= upperBound)
+
+        if not np.any(mask):
+            return []
+
+        # Find consecutive regions where mask is True
+        starts = np.flatnonzero(mask & ~np.r_[False, mask[:-1]])
+        ends = np.flatnonzero(mask & ~np.r_[mask[1:], False])
+        items = []
+
+        for region_start, region_end in zip(starts, ends):
+            # Extend each region halfway into the neighbouring intervals.
+            start = (
+                x[region_start]
+                if len(x) == 1
+                else (
+                    x[region_start] - 0.5 * (x[1] - x[0])
+                    if region_start == 0
+                    else 0.5 * (x[region_start - 1] + x[region_start])
+                )
+            )
+            end = (
+                x[region_end]
+                if len(x) == 1
+                else (
+                    x[region_end] + 0.5 * (x[-1] - x[-2])
+                    if region_end == len(x) - 1
+                    else 0.5 * (x[region_end] + x[region_end + 1])
+                )
+            )
+
+            region = pg.LinearRegionItem(
+                [start, end],
+                orientation='vertical',
+                movable=False,
+                pen=pg.mkPen(pen),
+                brush=pg.mkBrush(brush) if brush is not None else None
+            )
+            self.addItem(region)
+            items.append(region)
+
+        return items
 
 
     def rectangle(
@@ -1337,6 +1436,33 @@ class PgFigure(QMainWindow):
                 index = self._keybuffer.flushInteger()
                 if index is not None:
                     curPlt.navigateViewBoxTo(index - 1)
+            # GZ: add threshold linear coordinates based on first line plot
+            # NOTE: this specifically targets the first line plot,
+            # so the onus is on the caller to plot the intended line first
+            elif ev.key() == Qt.Key.Key_Z:
+                lower, upper = self._keybuffer.flushRange()
+                if lower is not None or upper is not None:
+                    print(f"range is {lower}:{upper}")
+                    # get first plot
+                    item = curPlt.listDataItems()[0]
+                    x, y = item.getData()
+                    colorScheme = (
+                        (pg.mkPen("r"), pg.mkBrush(255,0,0,50)),
+                        (pg.mkPen("g"), pg.mkBrush(0,255,0,50)),
+                        (pg.mkPen("b"), pg.mkBrush(0,0,255,50)),
+                    )
+                    ci = len(curPlt._rangedLinearRegions) % len(colorScheme) # rotate colours simply
+                    curPlt._rangedLinearRegions.extend(curPlt.rangedLinearRegion(
+                        x, y, lowerBound=lower, upperBound=upper,
+                        pen=colorScheme[ci][0], brush=colorScheme[ci][1]
+                    ))
+            # GX: remove all threshold linear regions
+            elif ev.key() == Qt.Key.Key_X:
+                # print(curPlt._rangedLinearRegions)
+                for item in curPlt._rangedLinearRegions:
+                    curPlt.removeItem(item)
+                curPlt._rangedLinearRegions = []
+
             # Always unfreeze at the end
             self._keybuffer.unfreeze()
         # Normal key handling (not frozen)

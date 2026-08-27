@@ -63,6 +63,14 @@ class KeyBuffer(QObject):
         except ValueError:
             return None
 
+    def flushFloat(self) -> float | None:
+        """Flush and parse the buffer as a float, returning None if invalid."""
+        value = self.flushString()
+        try:
+            return float(value)
+        except ValueError:
+            return None
+
 class KeyBufferCoordinates(KeyBuffer):
     def __init__(self):
         # Accept comma, period, minus, all digits
