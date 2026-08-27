@@ -88,6 +88,8 @@ class PgPlotItem(QObject):
         self._viewBoxFunction = None
         self._viewBoxIndex = -1
         self._viewBoxCount = None
+        # Annotations
+        self._annotations = dict()
 
         self._roi = pg.ROI((0, 0),
                            movable=True,
@@ -857,8 +859,8 @@ class PgPlotItem(QObject):
                 return None
         return index.astype(np.int32)
 
-    def _getLockedPosition(self):
-        index = self._getNearestImagePointIndex()
+    def _getLockedPosition(self, pos: np.ndarray | None = None):
+        index = self._getNearestImagePointIndex(pos)
         if index is None:
             return None, None
 
@@ -867,6 +869,53 @@ class PgPlotItem(QObject):
         # the centre of the selected cell, half a pixel from that corner.
         bottomLeftPointerPos = self._btmLeftPos + self._pixelSize * 0.5
         return index * self._pixelSize + bottomLeftPointerPos, index
+
+    def _getImagePosFromIndex(self, index: tuple[int, int] | np.ndarray):
+        return self._btmLeftPos + 0.5 * self._pixelSize * self._addHalfPixelBorder + np.array([index[1] * self._pixelSize[0], index[0] * self._pixelSize[1]])
+
+    def annotate(
+        self,
+        index: tuple[int, int] | np.ndarray,
+    ) -> pg.TextItem:
+        """
+        Add a fixed-size annotation box for the image pixel corresponding to `index`.
+
+        The annotation is anchored at the centre of the selected pixel and
+        contains its X/Y plot location and image value. The box follows the
+        image point during panning and zooming without changing screen size.
+
+        Parameters
+        ----------
+        index : tuple[int, int] | np.ndarray
+            (row, col) of the image data that should be annotated.
+
+        Returns
+        -------
+        pg.TextItem
+            The added annotation item.
+
+        Raises
+        ------
+        ValueError
+            If no image is set.
+        """
+        if self._im is None or self._imgData.size == 0:
+            raise ValueError("Image must be set before adding an annotation")
+
+        # x, y = lockedPos
+        x, y = self._getImagePosFromIndex(index)
+        value = self._imgData[int(index[0]), int(index[1])]
+        annotation = pg.TextItem(
+            text=f"X,Y: ({x:.6g}, {y:.6g})\nValue: {value}",
+            anchor=(0, 1),
+            fill=pg.mkColor(255, 255, 255), # white background
+            border=pg.mkPen("k", width=1),
+        )
+        # Just set text colour
+        annotation.setColor(pg.mkColor("k"))
+        annotation.setPos(x, y)
+        self.addItem(annotation, ignoreBounds=True)
+        return annotation
 
     def _replaceMouseLabelText(self, newtext: str):
         # The pyqtgraph one will reset all formatting;
@@ -1340,6 +1389,19 @@ class PgFigure(QMainWindow):
         elif ev.key() == Qt.Key.Key_N:
             # Navigate runtime-supplied predefined view boxes
             curPlt.navigateViewBox(-1 if ev.text() == "N" else 1)
+        elif ev.key() == Qt.Key.Key_X:
+            _, index = curPlt._getLockedPosition(curPlt._cursorPos)
+            if index is not None:
+                rowcolindex = (index[1], index[0]) # swap to row/col
+                if rowcolindex in curPlt._annotations:
+                    # Remove annotation if already exists
+                    curPlt.removeItem(curPlt._annotations[rowcolindex])
+                    curPlt._annotations[rowcolindex].deleteLater()
+                    del curPlt._annotations[rowcolindex]
+                else:
+                    # Add an annotation at the hovered point
+                    item = curPlt.annotate(rowcolindex) # note the swapped order
+                    curPlt._annotations[rowcolindex] = item
         else:
             # Key not handled by us, let Qt propagate it
             return super().keyPressEvent(ev)
