@@ -13,7 +13,7 @@ from itertools import repeat
 from pyimgroutines.plots._binarycolormap import makeBinaryColormap
 
 from ._keybuffer import KeyBufferCoordinates
-from .customitems import EllipseItem, HistogramItem, HybridScatterItem, RestrictedScatterItem
+from .customitems import EllipseItem, HistogramItem, HybridScatterItem, RestrictedScatterItem, RecolorableLegendItem
 
 def closeAllFigs():
     QApplication.closeAllWindows()
@@ -160,6 +160,12 @@ class PgPlotItem(QObject):
     # Forward everything unknown to the original PlotItem
     def __getattr__(self, name):
         return getattr(self._plotItem, name)
+
+    def addLegend(self, offset=(30, 30), **kwargs):
+        if self._plotItem.legend is None:
+            self._plotItem.legend = RecolorableLegendItem(offset=offset, **kwargs)
+            self._plotItem.legend.setParentItem(self.vb)
+        return self._plotItem.legend
 
     def scatterPlot(self, *args: Any, **kwargs: Any) -> pg.PlotDataItem:
         """Create a scatter plot and add it to this subplot.

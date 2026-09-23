@@ -4,3 +4,4 @@ from .histograms import HistogramItem
 from .nearestscatter import NearestScatterPlotItem
 from .hybridscatter import HybridScatterItem
 from .restrictedscatter import RestrictedScatterItem
+from .recolorablelegend import RecolorableLegendItem
