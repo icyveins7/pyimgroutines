@@ -1015,7 +1015,36 @@ class PgPlotItem(QObject):
         annotation.setColor(pg.mkColor("k"))
         annotation.setPos(x, y)
         self.addItem(annotation, ignoreBounds=True)
+        # Track internally so that explicit annotate() calls are also
+        # tracked; previously only the 'x' keyboard shortcut stored them.
+        rowcolindex = (int(index[0]), int(index[1]))
+        if rowcolindex in self._annotations:
+            self.removeAnnotation(rowcolindex)
+        self._annotations[rowcolindex] = annotation
         return annotation
+
+    def removeAnnotation(self, index: tuple[int, int]) -> bool:
+        """
+        Remove the annotation at (row, col) `index`, if one exists.
+
+        Returns
+        -------
+        bool
+            True if an annotation was removed.
+        """
+        item = self._annotations.pop(index, None)
+        if item is None:
+            return False
+        self.removeItem(item)
+        item.deleteLater()
+        return True
+
+    def clearAnnotations(self):
+        """Remove all annotations from this plot."""
+        for item in self._annotations.values():
+            self.removeItem(item)
+            item.deleteLater()
+        self._annotations.clear()
 
     def _replaceMouseLabelText(self, newtext: str):
         # The pyqtgraph one will reset all formatting;
@@ -1465,6 +1494,9 @@ class PgFigure(QMainWindow):
                 for item in curPlt._rangedLinearRegions:
                     curPlt.removeItem(item)
                 curPlt._rangedLinearRegions = []
+            # GD: remove all annotations
+            elif ev.key() == Qt.Key.Key_D:
+                curPlt.clearAnnotations()
 
             # Always unfreeze at the end
             self._keybuffer.unfreeze()
@@ -1521,16 +1553,10 @@ class PgFigure(QMainWindow):
         elif ev.key() == Qt.Key.Key_X:
             _, index = curPlt._getLockedPosition(curPlt._cursorPos)
             if index is not None:
-                rowcolindex = (index[1], index[0]) # swap to row/col
-                if rowcolindex in curPlt._annotations:
-                    # Remove annotation if already exists
-                    curPlt.removeItem(curPlt._annotations[rowcolindex])
-                    curPlt._annotations[rowcolindex].deleteLater()
-                    del curPlt._annotations[rowcolindex]
-                else:
-                    # Add an annotation at the hovered point
-                    item = curPlt.annotate(rowcolindex) # note the swapped order
-                    curPlt._annotations[rowcolindex] = item
+                rowcolindex = (int(index[1]), int(index[0])) # swap to row/col
+                # Remove annotation if already exists, otherwise add one
+                if not curPlt.removeAnnotation(rowcolindex):
+                    curPlt.annotate(rowcolindex) # note the swapped order
         else:
             # Key not handled by us, let Qt propagate it
             return super().keyPressEvent(ev)
@@ -1573,6 +1599,7 @@ gg: Zoom to coordinates; enter x,y before pressing g
 <low>:<high>gz: Add regions for y values within an inclusive range
    Enter lower:upper before pressing z; either bound may be empty
 gx: Remove all ranged linear regions
+gd: Remove all annotations
 """
         helpbox.setText(helpText)
         return helpbox
