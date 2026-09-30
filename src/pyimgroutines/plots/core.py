@@ -187,10 +187,15 @@ class PgPlotItem(QObject):
         """
         Create an annotatable scatter and add it to this subplot.
 
-        Unlike `scatterPlot`, this returns the scatter item itself (a
+        Unlike `scatterPlot`, this returns the custom scatter item itself (a
         `NearestScatterPlotItem`) rather than a ``PlotDataItem`` wrapper.
         Points of the returned item can be annotated with the ``x`` hotkey;
         the label text comes from ``item.setAnnotationFormatter(...)``.
+
+        In particular, NearestScatterPlotItems offer:
+
+        - Faster nearest neighbour lookups (usually only tangible with >1M points)
+        - Annotation formatting as stated above
 
         Parameters
         ----------
