@@ -1,8 +1,34 @@
-import time
+from __future__ import annotations
+from typing import Any, Callable
+
 import numpy as np
 import pyqtgraph as pg
 from scipy.spatial import KDTree
 from pyqtgraph.graphicsItems.ScatterPlotItem import SpotItem
+
+
+AnnotationFormatter = Callable[[int, float, float, Any], str]
+
+
+def defaultAnnotationFormatter(index: int, x: float, y: float, data: Any) -> str:
+    """
+    Default text for a scatter point annotation.
+
+    Parameters
+    ----------
+    index : int
+        Position of the point in the scatter arrays.
+    x, y : float
+        Coordinates of the point.
+    data : Any
+        Per-point payload supplied via ``setData(..., data=...)``; unused here.
+
+    Returns
+    -------
+    str
+        Two-line label with the coordinates and the index.
+    """
+    return f"X,Y: ({x:.6g}, {y:.6g})\nIndex: {index}"
 
 
 class NearestScatterPlotItem(pg.ScatterPlotItem):
@@ -11,6 +37,12 @@ class NearestScatterPlotItem(pg.ScatterPlotItem):
 
     A KDTree is rebuilt whenever the scatter data is changed. Hover queries
     use the nearest point instead of testing every point.
+
+    The item also carries an annotation formatter, a callable that turns a
+    point into label text. `PgPlotItem` calls it when the user presses the
+    annotation hotkey over a point of this item. Replace it at any time via
+    `setAnnotationFormatter`; the callable may look values up lazily
+    (e.g. from a database) since it is only invoked on demand.
     """
 
     def __init__(self, *args, **kwargs):
@@ -20,24 +52,81 @@ class NearestScatterPlotItem(pg.ScatterPlotItem):
         self._hoverMaxPixelRadius = 0.0
         self._hoverMaxDataRadius = 0.0
         self._hoveredIndices = np.empty(0, dtype=np.intp)
-        self._searchCount = 0
-        self._searchTotal = 0.0
-        self._paintCount = 0
-        self._paintTotal = 0.0
+        self._toolTipCleared = True
+        self._annotationFormatter: AnnotationFormatter = defaultAnnotationFormatter
         super().__init__(*args, **kwargs)
         self.setAcceptHoverEvents(True)
 
-    def paint(self, *args, **kwargs):
-        start = time.perf_counter()
-        result = super().paint(*args, **kwargs)
-        self._paintCount += 1
-        self._paintTotal += time.perf_counter() - start
-        if self._paintCount <= 3 or self._paintCount % 10 == 0:
-            print(
-                f"NearestScatterPlotItem paint #{self._paintCount}: "
-                f"{(time.perf_counter() - start) * 1000:.3f} ms"
-            )
-        return result
+    def setAnnotationFormatter(self, formatter: AnnotationFormatter | None):
+        """
+        Set the callable used to build annotation text for a point.
+
+        Parameters
+        ----------
+        formatter : callable or None
+            ``formatter(index, x, y, data) -> str``. ``index`` is the point's
+            position in the scatter arrays, ``x``/``y`` its coordinates and
+            ``data`` the per-point payload (None if not supplied). Passing
+            None restores `defaultAnnotationFormatter`.
+        """
+        self._annotationFormatter = (
+            defaultAnnotationFormatter if formatter is None else formatter
+        )
+
+    def annotationText(self, index: int) -> str:
+        """
+        Build the annotation text for the point at `index`.
+
+        Parameters
+        ----------
+        index : int
+            Position of the point in the scatter arrays.
+
+        Returns
+        -------
+        str
+            Result of the current annotation formatter.
+        """
+        # Pull the point's coordinates and payload, then defer to the formatter
+        # TODO: baseline pyqtgraph effectively stores as an array of structs,
+        # but this is actually inefficient. for now we will maintain it, but
+        # early tests show that dict of arrays should be faster
+        x = float(self.data["x"][index])
+        y = float(self.data["y"][index])
+        data = self.data["data"][index]
+        return self._annotationFormatter(int(index), x, y, data)
+
+    def nearestPoint(self, x: float, y: float) -> tuple[int, float] | None:
+        """
+        Return the nearest point whose symbol covers data position (x, y).
+
+        Parameters
+        ----------
+        x, y : float
+            Query position in data coordinates.
+
+        Returns
+        -------
+        (index, distance) or None
+            Scatter index of the nearest point and its distance from the
+            query position in data units, or None if the nearest point's
+            symbol does not cover the position.
+        """
+        if self._hoverTree is None:
+            return None
+        # KDTree nearest neighbour, mapped back to the scatter index
+        distance, treeIndex = self._hoverTree.query((x, y))
+        index = int(self._hoverTreeIndices[treeIndex])
+        # Symbol radius in data units; in pxMode this depends on the zoom
+        if self.opts["pxMode"]:
+            px, py = self.pixelVectors()
+            scale = 0 if px is None or py is None else max(px.length(), py.length())
+            radius = self._hoverPixelRadii[index] * scale
+        else:
+            radius = self.data["size"][index] / 2
+        if distance > radius or not self.data["visible"][index]:
+            return None
+        return index, float(distance)
 
     def setData(self, *args, **kwargs):
         result = super().setData(*args, **kwargs)
@@ -54,16 +143,6 @@ class NearestScatterPlotItem(pg.ScatterPlotItem):
         self._hoverMaxDataRadius = np.max(self.data["size"], initial=0) / 2
 
         return result
-
-    def _hoverRadius(self, index: int, scale: float = 1) -> float:
-        if self.opts["pxMode"] and self.opts["useCache"]:
-            size = self._hoverPixelRadii[index]
-        else:
-            size = self.data["size"][index] / 2
-
-        if not self.opts["pxMode"]:
-            return size
-        return size * scale
 
     def _spotItem(self, index: int) -> SpotItem:
         item = self.data["item"][index]
@@ -93,7 +172,6 @@ class NearestScatterPlotItem(pg.ScatterPlotItem):
             indices = np.empty(0, dtype=np.intp)
             points = np.empty(0, dtype=object)
         else:
-            searchStart = time.perf_counter()
             pos = ev.pos()
             if self.opts["pxMode"]:
                 px, py = self.pixelVectors()
@@ -116,13 +194,6 @@ class NearestScatterPlotItem(pg.ScatterPlotItem):
             indices = indices[
                 (distances <= radii) & self.data["visible"][indices]
             ]
-            self._searchCount += 1
-            self._searchTotal += time.perf_counter() - searchStart
-            if self._searchCount <= 3 or self._searchCount % 10 == 0:
-                print(
-                    f"NearestScatterPlotItem search #{self._searchCount}: "
-                    f"{(time.perf_counter() - searchStart) * 1000:.3f} ms"
-                )
             points = np.array([self._spotItem(i) for i in indices], dtype=object)
 
         self.data["hovered"][indices] = True

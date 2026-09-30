@@ -13,7 +13,7 @@ from itertools import repeat
 from pyimgroutines.plots._binarycolormap import makeBinaryColormap
 
 from ._keybuffer import KeyBufferCoordinates
-from .customitems import EllipseItem, HistogramItem, HybridScatterItem, RestrictedScatterItem
+from .customitems import EllipseItem, HistogramItem, HybridScatterItem, RestrictedScatterItem, NearestScatterPlotItem
 
 def closeAllFigs():
     QApplication.closeAllWindows()
@@ -84,6 +84,7 @@ class PgPlotItem(QObject):
         # Custom scatter items
         self._hybridScatters = []
         self._restrictedScatters = []
+        self._nearestscatters: list[NearestScatterPlotItem] = []
         # Viewbox jumping
         self._viewBoxFunction = None
         self._viewBoxIndex = -1
@@ -181,6 +182,35 @@ class PgPlotItem(QObject):
             The newly created scatter plot item.
         """
         return self._plotItem.scatterPlot(*args, **kwargs)
+
+    def scatter(self, *args: Any, **kwargs: Any) -> NearestScatterPlotItem:
+        """
+        Create an annotatable scatter and add it to this subplot.
+
+        Unlike `scatterPlot`, this returns the scatter item itself (a
+        `NearestScatterPlotItem`) rather than a ``PlotDataItem`` wrapper.
+        Points of the returned item can be annotated with the ``x`` hotkey;
+        the label text comes from ``item.setAnnotationFormatter(...)``.
+
+        Parameters
+        ----------
+        *args : Any
+            Positional arguments forwarded to ``pg.ScatterPlotItem``, typically
+            ``(x, y)``.
+        **kwargs : Any
+            Keyword arguments forwarded to ``pg.ScatterPlotItem`` (``pen``,
+            ``brush``, ``size``, ``symbol``, ``name``, ``data``, ...).
+
+        Returns
+        -------
+        NearestScatterPlotItem
+            The newly created scatter item.
+        """
+        item = NearestScatterPlotItem(*args, **kwargs)
+        # Track it so the annotation hotkey can query it
+        self._nearestscatters.append(item)
+        self.addItem(item)
+        return item
 
     @property
     def base(self) -> pg.PlotItem:
@@ -978,6 +1008,48 @@ class PgPlotItem(QObject):
     def _getImagePosFromIndex(self, index: tuple[int, int] | np.ndarray):
         return self._btmLeftPos + 0.5 * self._pixelSize * self._addHalfPixelBorder + np.array([index[1] * self._pixelSize[0], index[0] * self._pixelSize[1]])
 
+    def _addAnnotationItem(self, key, x: float, y: float, text: str) -> pg.TextItem:
+        """
+        Create a fixed-size annotation box at (x, y) and register it under `key`.
+
+        If an annotation is already registered under `key` it is removed
+        first, so calling this twice with the same key replaces rather than
+        stacks. Toggling (remove if present, otherwise add) is not done here;
+        the ``x`` hotkey handler does that using `removeAnnotation`'s return
+        value before calling `annotate` / `annotateScatterPoint`.
+
+        Parameters
+        ----------
+        key : hashable
+            Key into ``self._annotations``. Image pixels use ``(row, col)``;
+            scatter points use ``(item, index)``.
+        x, y : float
+            Plot coordinates the box is anchored to.
+        text : str
+            Label text.
+
+        Returns
+        -------
+        pg.TextItem
+            The added annotation item.
+        """
+        # White box, black border and text, bottom-left anchored at the point
+        annotation = pg.TextItem(
+            text=text,
+            anchor=(0, 1),
+            fill=pg.mkColor(255, 255, 255), # white background
+            border=pg.mkPen("k", width=1),
+        )
+        # Just set text colour
+        annotation.setColor(pg.mkColor("k"))
+        annotation.setPos(x, y)
+        self.addItem(annotation, ignoreBounds=True)
+        # Replace any existing annotation under the same key
+        if key in self._annotations:
+            self.removeAnnotation(key)
+        self._annotations[key] = annotation
+        return annotation
+
     def annotate(
         self,
         index: tuple[int, int] | np.ndarray,
@@ -1010,27 +1082,79 @@ class PgPlotItem(QObject):
         # x, y = lockedPos
         x, y = self._getImagePosFromIndex(index)
         value = self._imgData[int(index[0]), int(index[1])]
-        annotation = pg.TextItem(
-            text=f"X,Y: ({x:.6g}, {y:.6g})\nValue: {value}",
-            anchor=(0, 1),
-            fill=pg.mkColor(255, 255, 255), # white background
-            border=pg.mkPen("k", width=1),
-        )
-        # Just set text colour
-        annotation.setColor(pg.mkColor("k"))
-        annotation.setPos(x, y)
-        self.addItem(annotation, ignoreBounds=True)
         # Track internally so that explicit annotate() calls are also
         # tracked; previously only the 'x' keyboard shortcut stored them.
         rowcolindex = (int(index[0]), int(index[1]))
-        if rowcolindex in self._annotations:
-            self.removeAnnotation(rowcolindex)
-        self._annotations[rowcolindex] = annotation
-        return annotation
+        return self._addAnnotationItem(
+            rowcolindex, x, y, f"X,Y: ({x:.6g}, {y:.6g})\nValue: {value}"
+        )
 
-    def removeAnnotation(self, index: tuple[int, int]) -> bool:
+    def annotateScatterPoint(
+        self, item: NearestScatterPlotItem, index: int
+    ) -> pg.TextItem:
         """
-        Remove the annotation at (row, col) `index`, if one exists.
+        Add an annotation box for point `index` of scatter `item`.
+
+        The text is produced by the item's annotation formatter (see
+        `NearestScatterPlotItem.setAnnotationFormatter`). The annotation is
+        keyed by ``(item, index)`` so it can be toggled or cleared like image
+        annotations.
+
+        Parameters
+        ----------
+        item : NearestScatterPlotItem
+            Scatter item, typically created via `scatter`.
+        index : int
+            Position of the point in the scatter arrays.
+
+        Returns
+        -------
+        pg.TextItem
+            The added annotation item.
+        """
+        # Anchor at the point itself; text is the user-controlled formatter's
+        xs, ys = item.getData()
+        return self._addAnnotationItem(
+            (item, int(index)), float(xs[index]), float(ys[index]), item.annotationText(index)
+        )
+
+    def _nearestScatterPoint(
+        self, pos: np.ndarray
+    ) -> tuple[NearestScatterPlotItem, int] | None:
+        """
+        Find the scatter point under `pos` across all `scatter` items.
+
+        Parameters
+        ----------
+        pos : np.ndarray
+            (x, y) query position in plot coordinates.
+
+        Returns
+        -------
+        (item, index) or None
+            The item and point index of the closest hit, or None if no
+            point's symbol covers the position.
+        """
+        if np.any(np.isnan(pos)):
+            return None
+        # Ask each tracked scatter for its nearest hit and keep the closest
+        best = None
+        bestDistance = np.inf
+        for item in self._nearestscatters:
+            hit = item.nearestPoint(float(pos[0]), float(pos[1]))
+            if hit is not None and hit[1] < bestDistance:
+                best, bestDistance = (item, hit[0]), hit[1]
+        return best
+
+    def removeAnnotation(self, index) -> bool:
+        """
+        Remove the annotation under key `index`, if one exists.
+
+        Parameters
+        ----------
+        index : hashable
+            ``(row, col)`` for an image pixel or ``(item, index)`` for a
+            scatter point.
 
         Returns
         -------
@@ -1556,12 +1680,19 @@ class PgFigure(QMainWindow):
             # Navigate runtime-supplied predefined view boxes
             curPlt.navigateViewBox(-1 if ev.text() == "N" else 1)
         elif ev.key() == Qt.Key.Key_X:
-            _, index = curPlt._getLockedPosition(curPlt._cursorPos)
-            if index is not None:
-                rowcolindex = (int(index[1]), int(index[0])) # swap to row/col
+            # Scatter points take priority over the image beneath them
+            hit = curPlt._nearestScatterPoint(curPlt._cursorPos)
+            if hit is not None:
                 # Remove annotation if already exists, otherwise add one
-                if not curPlt.removeAnnotation(rowcolindex):
-                    curPlt.annotate(rowcolindex) # note the swapped order
+                if not curPlt.removeAnnotation(hit):
+                    curPlt.annotateScatterPoint(*hit)
+            else:
+                _, index = curPlt._getLockedPosition(curPlt._cursorPos)
+                if index is not None:
+                    rowcolindex = (int(index[1]), int(index[0])) # swap to row/col
+                    # Remove annotation if already exists, otherwise add one
+                    if not curPlt.removeAnnotation(rowcolindex):
+                        curPlt.annotate(rowcolindex) # note the swapped order
         else:
             # Key not handled by us, let Qt propagate it
             return super().keyPressEvent(ev)
@@ -1591,7 +1722,7 @@ i: Toggle image visibility
 r: Toggle ROI
 t: Toggle targeting crosshair (will follow current magnetization)
 o: Toggle measure line
-x: Add/remove annotation over current pixel
+x: Add/remove annotation over current scatter point or image pixel
 Esc: Restore all subplots when maximized
 n/N: Go to next/previous predefined view box
 <number>gn: Go to a specific predefined view box
