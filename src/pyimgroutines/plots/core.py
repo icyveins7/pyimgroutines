@@ -948,6 +948,11 @@ class PgPlotItem(QObject):
         """
         if pos is None:
             pos = self._cursorPos
+        # Without an image, _btmLeftPos/_pixelSize are still nan, so there is
+        # no pixel grid to index into; bail out before the nan arithmetic
+        # below silently passes the range check and casts to garbage ints.
+        if self._im is None or self._imgData.size == 0:
+            return None
         # NOTE: cursorPos may be nan/invalid if hovering over another subplot
         if np.all(np.isnan(pos)):
             return None
