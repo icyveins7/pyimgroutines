@@ -822,7 +822,7 @@ class PgPlotItem(QObject):
         max_tile_span: int = 3,
         symbol="o",
         brush="w",
-        pen=None,
+        pen=(200, 200, 200),
         name=None,
         coarse_color=None,
         **kwargs
@@ -860,7 +860,7 @@ class PgPlotItem(QObject):
             Fill color for raw scatter symbols. This also determines the coarse
             image color when `coarse_color` is ``None``.
 
-        pen : color-like, QPen, or None, optional
+        pen : color-like, QPen, or None, default (200, 200, 200)
             Outline pen for raw scatter symbols.
 
         name : str, optional

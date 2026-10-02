@@ -23,7 +23,8 @@ class HybridScatterItem(QObject):
         max_tile_span: int = 3,
         symbol="o",
         brush="w",
-        pen=None,
+        # Match pyqtgraph PlotDataItem's default symbolPen.
+        pen=(200, 200, 200),
         name=None,
         coarse_color=None,
         **kwargs
@@ -62,7 +63,7 @@ class HybridScatterItem(QObject):
         brush : color-like or QBrush, default "w"
             Fill color for raw scatter symbols.
 
-        pen : color-like, QPen, or None, optional
+        pen : color-like, QPen, or None, default (200, 200, 200)
             Outline pen for raw scatter symbols.
 
         name : str, optional
