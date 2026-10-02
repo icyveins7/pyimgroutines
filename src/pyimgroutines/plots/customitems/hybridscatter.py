@@ -27,6 +27,7 @@ class HybridScatterItem(QObject):
         pen=(200, 200, 200),
         name=None,
         coarse_color=None,
+        size=10,
         **kwargs
     ):
         """
@@ -74,6 +75,10 @@ class HybridScatterItem(QObject):
             :func:`pyqtgraph.mkColor`, such as ``"r"``, create a black-to-color
             gradient. ``None`` retains the default grayscale image.
 
+        size : float, default 10
+            Raw scatter symbol size in pixels when ``pxMode=True``. The default
+            matches pyqtgraph's ``PlotDataItem`` size used by ``plot()``.
+
         **kwargs
             Additional arguments forwarded to
             :class:`pyqtgraph.ScatterPlotItem`.
@@ -110,6 +115,7 @@ class HybridScatterItem(QObject):
             symbol=symbol,
             brush=brush,
             name=name,
+            size=size,
             **kwargs
         )
         self._scatter.setZValue(0)

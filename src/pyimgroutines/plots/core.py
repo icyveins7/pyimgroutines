@@ -825,6 +825,7 @@ class PgPlotItem(QObject):
         pen=(200, 200, 200),
         name=None,
         coarse_color=None,
+        size=10,
         **kwargs
     ) -> HybridScatterItem:
         """
@@ -870,6 +871,10 @@ class PgPlotItem(QObject):
             Endpoint color for the coarse image's black-to-color gradient. When
             ``None``, the color is taken from `brush`.
 
+        size : float, default 10
+            Raw scatter symbol size in pixels when ``pxMode=True``. The default
+            matches pyqtgraph's ``PlotDataItem`` size used by ``plot()``.
+
         **kwargs
             Additional arguments forwarded to
             :class:`pyqtgraph.ScatterPlotItem`.
@@ -892,6 +897,7 @@ class PgPlotItem(QObject):
             pen=pen,
             name=name,
             coarse_color=coarse_color,
+            size=size,
             **kwargs
         )
         self._hybridScatters.append(item)
