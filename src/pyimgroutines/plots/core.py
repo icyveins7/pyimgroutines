@@ -824,12 +824,63 @@ class PgPlotItem(QObject):
         brush="w",
         pen=None,
         name=None,
+        coarse_color=None,
         **kwargs
     ) -> HybridScatterItem:
         """
-        Create and add a hybrid coarse-image/raw-tile scatter representation.
+        Add a coarse-image and tile-backed raw-scatter representation.
+
+        The coarse image and raw scatter are both added to this subplot. Range
+        changes select between them and populate the raw scatter with points
+        from the visible spatial-grid tiles.
+
+        Parameters
+        ----------
+        points : np.ndarray, shape (N, 2)
+            Point coordinates stored as ``(x, y)`` pairs.
+
+        tile_size : float or array-like, shape (2,)
+            Width and height of each spatial-grid tile. A scalar creates square
+            tiles.
+
+        img_dims : tuple[int, int], default (2048, 2048)
+            Coarse image dimensions as ``(height, width)``.
+
+        img_xywh : array-like, shape (4,), optional
+            Coarse image bounds as ``(x, y, width, height)``. By default, the
+            bounds are derived from `points`.
+
+        max_tile_span : int, default 3
+            Maximum visible tile span along each axis for showing raw points.
+
+        symbol : str or QPainterPath, default "o"
+            Symbol passed to :class:`pyqtgraph.ScatterPlotItem`.
+
+        brush : color-like or QBrush, default "w"
+            Fill color for raw scatter symbols. This also determines the coarse
+            image color when `coarse_color` is ``None``.
+
+        pen : color-like, QPen, or None, optional
+            Outline pen for raw scatter symbols.
+
+        name : str, optional
+            Scatter item name, typically used by plot legends.
+
+        coarse_color : color-like, optional
+            Endpoint color for the coarse image's black-to-color gradient. When
+            ``None``, the color is taken from `brush`.
+
+        **kwargs
+            Additional arguments forwarded to
+            :class:`pyqtgraph.ScatterPlotItem`.
+
+        Returns
+        -------
+        HybridScatterItem
+            Controller containing the added coarse image and raw scatter items.
         """
-        # TODO: add more detail to docstring
+        if coarse_color is None:
+            coarse_color = pg.mkBrush(brush).color()
         item = HybridScatterItem(
             points,
             tile_size,
@@ -840,6 +891,7 @@ class PgPlotItem(QObject):
             brush=brush,
             pen=pen,
             name=name,
+            coarse_color=coarse_color,
             **kwargs
         )
         self._hybridScatters.append(item)

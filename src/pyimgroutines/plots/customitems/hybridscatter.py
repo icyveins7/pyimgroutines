@@ -4,6 +4,7 @@ from PySide6.QtCore import QObject, Signal, QRectF
 
 from ...packed_spatial_grid import PackedSpatialGrid
 from ...point_raster import points_to_image
+from .._binarycolormap import makeBinaryColormap
 
 
 class HybridScatterItem(QObject):
@@ -24,8 +25,64 @@ class HybridScatterItem(QObject):
         brush="w",
         pen=None,
         name=None,
+        coarse_color=None,
         **kwargs
     ):
+        """
+        Build coarse and tile-backed representations of a 2D point set.
+
+        The coarse representation is a rasterized density image covering the
+        point extent. The raw representation is a scatter item populated with
+        selected spatial-grid tiles by :meth:`setRawTiles`. The coarse image is
+        initially visible and the raw scatter is initially hidden.
+
+        Parameters
+        ----------
+        points : np.ndarray, shape (N, 2)
+            Point coordinates stored as ``(x, y)`` pairs.
+
+        tile_size : float or array-like, shape (2,)
+            Width and height of each spatial-grid tile. A scalar creates square
+            tiles.
+
+        img_dims : tuple[int, int], default (2048, 2048)
+            Coarse image dimensions as ``(height, width)``.
+
+        img_xywh : array-like, shape (4,), optional
+            Coarse image bounds as ``(x, y, width, height)``. By default, the
+            bounds are derived from `points`.
+
+        max_tile_span : int, default 3
+            Maximum visible tile span along each axis for showing raw points.
+            The owning plot uses this threshold when switching representations.
+
+        symbol : str or QPainterPath, default "o"
+            Symbol passed to :class:`pyqtgraph.ScatterPlotItem`.
+
+        brush : color-like or QBrush, default "w"
+            Fill color for raw scatter symbols.
+
+        pen : color-like, QPen, or None, optional
+            Outline pen for raw scatter symbols.
+
+        name : str, optional
+            Scatter item name, typically used by plot legends.
+
+        coarse_color : color-like, optional
+            Endpoint color for the coarse image. Values accepted by
+            :func:`pyqtgraph.mkColor`, such as ``"r"``, create a black-to-color
+            gradient. ``None`` retains the default grayscale image.
+
+        **kwargs
+            Additional arguments forwarded to
+            :class:`pyqtgraph.ScatterPlotItem`.
+
+        Raises
+        ------
+        ValueError
+            If `points` does not have shape ``(N, 2)`` or `max_tile_span` is
+            less than one.
+        """
         super().__init__()
         points = np.asarray(points)
         if points.ndim != 2 or points.shape[1] != 2:
@@ -40,6 +97,10 @@ class HybridScatterItem(QObject):
             img_xywh=img_xywh,
         )
         self._coarseimg = pg.ImageItem(coarse_image, axisOrder="row-major")
+        if coarse_color is not None:
+            self._coarseimg.setColorMap(
+                makeBinaryColormap(pg.mkColor("k"), pg.mkColor(coarse_color))
+            )
         self._coarseimg.setRect(QRectF(*self._coarse_xywh))
         self._coarseimg.setZValue(-100)
 
