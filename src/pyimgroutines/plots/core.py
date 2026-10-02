@@ -852,7 +852,9 @@ class PgPlotItem(QObject):
             bounds are derived from `points`.
 
         max_tile_span : int, default 3
-            Maximum visible tile span along each axis for showing raw points.
+            Maximum loaded tile span along each axis for showing raw points.
+            Raw mode requires a view span no larger than one fewer tile along
+            each axis, ensuring panning cannot exceed this loading limit.
 
         symbol : str or QPainterPath, default "o"
             Symbol passed to :class:`pyqtgraph.ScatterPlotItem`.
@@ -903,17 +905,35 @@ class PgPlotItem(QObject):
         self._hybridScatters.append(item)
         self.addItem(item.coarseimg)
         self.addItem(item.scatter)
-        self.vb.sigRangeChanged.connect(self._mutateHybridScatters)
+        # Guard against multiple connections; we just lazily connect on first invocation
+        if len(self._hybridScatters) == 1:
+            self.vb.sigRangeChanged.connect(self._mutateHybridScatters)
         self._mutateHybridScatters()
         return item
 
     def _mutateHybridScatters(self, *args):
-        # TODO: add more detailed explanations
         view_range = self.viewRange()
         # print(f"PgPlotItem._mutateHybridScatters: view_range={view_range}")
         x_range, y_range = view_range
+        view_span = np.array([
+            x_range[1] - x_range[0],
+            y_range[1] - y_range[0],
+        ])
 
         for item in self._hybridScatters:
+            # A view wider than M - 1 tiles can overlap more than M tiles as it
+            # pans across tile boundaries, so gate raw mode on this invariant span.
+            # e.g. 2.5 tiles can actually 'touch' 4 tiles
+            # |  T1 |  T2 |  T3 |  T4 |
+            #    |    viewport     |
+            # Hence the correct limit is actually -1 of this, to ensure that only
+            # up to max_tile_span of tiles actually get loaded
+            max_raw_view_span = (item.max_tile_span - 1) * item.grid.tile_size
+            if np.any(view_span > max_raw_view_span):
+                item.showCoarse()
+                continue
+
+            # If it fits in the max span then we retrieve the tiles
             tile_indices = item.grid.getTileIndicesOverlappingBox(
                 x_range[0], y_range[0], x_range[1], y_range[1]
             )

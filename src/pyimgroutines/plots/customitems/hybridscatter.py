@@ -55,8 +55,9 @@ class HybridScatterItem(QObject):
             bounds are derived from `points`.
 
         max_tile_span : int, default 3
-            Maximum visible tile span along each axis for showing raw points.
-            The owning plot uses this threshold when switching representations.
+            Maximum loaded tile span along each axis for showing raw points.
+            Raw mode requires a view span no larger than one fewer tile along
+            each axis, ensuring panning cannot exceed this loading limit.
 
         symbol : str or QPainterPath, default "o"
             Symbol passed to :class:`pyqtgraph.ScatterPlotItem`.

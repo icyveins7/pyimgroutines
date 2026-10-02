@@ -78,6 +78,10 @@ class PackedSpatialGrid:
         self._lut[unique_y, unique_x] = np.column_stack((offsets, counts))
 
     @property
+    def tile_size(self) -> np.ndarray:
+        return self._tile_size.copy()
+
+    @property
     def num_tiles_x(self):
         return self._num_tiles_x
 
