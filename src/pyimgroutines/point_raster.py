@@ -1,4 +1,5 @@
 from collections.abc import Iterable
+import warnings
 
 import numpy as np
 
@@ -42,6 +43,12 @@ def points_to_image(
         Automatically generated bounds include the half-pixel shift required
         for plotting pixel centres, so pass ``addHalfPixelBorder=False`` when
         passing the returned bounds to ``PgPlotItem.image()``.
+
+    Warns
+    -----
+    RuntimeWarning
+        If the maximum count in one pixel exceeds the output dtype's maximum,
+        since scaling may then map low-count occupied pixels to zero.
     """
     dtype = np.dtype(dtype)
     if not np.issubdtype(dtype, np.integer):
@@ -122,8 +129,22 @@ def points_to_image(
     np.add.at(image, (y_indices, x_indices), 1)
 
     max_count = image.max()
+    # NOTE: if more than max count in a single pixel, this may cause
+    # some non-zero pixels to be scaled to 'zero', appearing transparent.
+    # Advice should be to make the image higher resolution, as it is generally still performant.
+    # e.g. if default uint8, then should ensure <255 max count for a given pixel.
+    dtype_max = np.iinfo(dtype).max
+    if max_count > dtype_max:
+        warnings.warn(
+            f"Coarse point raster with img_dims=({img_height}, {img_width}) "
+            f"has up to {int(max_count)} points in one pixel; scaling to "
+            f"{dtype.name} may map low-count occupied pixels to zero. Increase "
+            "img_dims or use a wider output dtype to preserve low-density pixels.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
     if max_count > 0:
-        image = (image / max_count * np.iinfo(dtype).max).astype(dtype)
+        image = (image / max_count * dtype_max).astype(dtype)
     else:
         image = image.astype(dtype)
 
