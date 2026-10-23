@@ -5,6 +5,7 @@ from PySide6.QtGui import QBrush, QPen, QTextBlockFormat, QTextCursor, QColor
 import pyqtgraph as pg
 from pyqtgraph.functions import arrayToQPath
 import numpy as np
+import shiboken6
 from numpy import typing as npt
 from PySide6.QtCore import QPointF, Qt, QRectF, Signal, QObject
 from PySide6.QtWidgets import QApplication, QMessageBox, QMainWindow
@@ -1551,6 +1552,37 @@ class PgFigure(QMainWindow):
         self._viewBoxStatus = QtWidgets.QLabel("")
         self.statusBar().addPermanentWidget(self._viewBoxStatus)
 
+    def dispose(self) -> None:
+        """
+        Permanently destroy this figure and release its plot data immediately.
+
+        Closing or deleting a PgFigure normally leaves Python reference cycles
+        between the figure, its PgPlotItems, and Qt signal callbacks. Those
+        cycles can retain large objects such as PgPlotItem._imgData after the
+        window has closed. This explicit disposal method was chosen instead of
+        changing the existing parent references and callback ownership to weak
+        references, which would require a wider and more error-prone lifecycle
+        refactor throughout the interactive plotting code.
+
+        The figure must not be used after this method returns. Calling dispose
+        again on the same Python wrapper is safe and has no effect.
+        """
+        # An invalid wrapper means that this figure has already been disposed.
+        if not shiboken6.isValid(self):
+            return
+
+        # Close the visible window before tearing down its Python-owned state.
+        self.close()
+
+        # Release the Python references that own PgPlotItems and the graphics
+        # widget; these objects can otherwise retain image and overlay arrays.
+        self._plts = np.empty((0, 0), dtype=object)
+        self._graphicsWidget = None
+
+        # Destroy the underlying QMainWindow immediately rather than scheduling
+        # deferred deletion through QObject.deleteLater().
+        shiboken6.delete(self)
+
     # Forward unknown attributes to the graphics widget
     def __getattr__(self, name):
         # Avoid infinite recursion during init
@@ -2028,4 +2060,3 @@ if __name__ == "__main__":
 
 
     forceShow()
-
