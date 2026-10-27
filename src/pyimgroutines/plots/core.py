@@ -14,6 +14,7 @@ from itertools import repeat
 from pyimgroutines.plots._binarycolormap import makeBinaryColormap
 
 from ._keybuffer import KeyBufferCoordinates
+from .plotitemstate import PgPlotItemState, ViewportStateDialog
 from .customitems import EllipseItem, HistogramItem, HybridScatterItem, RestrictedScatterItem, NearestScatterPlotItem
 
 def closeAllFigs():
@@ -1767,6 +1768,8 @@ class PgFigure(QMainWindow):
         elif ev.key() == Qt.Key.Key_H:
             helpbox = self._makeHelpDialog()
             helpbox.exec()
+        elif ev.key() == Qt.Key.Key_P:
+            ViewportStateDialog(curPlt, self).exec()
         elif ev.key() == Qt.Key.Key_B:
             # Toggle status bar visibility
             sb = self.statusBar()
@@ -1828,6 +1831,7 @@ class PgFigure(QMainWindow):
         helpbox.setWindowTitle("Hotkeys")
         helpText = """
 h: Show this help window
+p: Copy or set the hovered subplot's viewport state
 v: Rotate cursor's text modes (position / data / none)
 c: Toggle cursor text colour
 l: Toggle magnetized cursor locks
