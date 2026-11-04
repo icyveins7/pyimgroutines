@@ -14,6 +14,7 @@ from itertools import repeat
 from pyimgroutines.plots._binarycolormap import makeBinaryColormap
 
 from ._keybuffer import KeyBufferCoordinates
+from ._validlevelsimageitem import _ValidLevelsImageItem
 from .plotitemstate import PgPlotItemState, ViewportStateDialog
 from .customitems import EllipseItem, HistogramItem, HybridScatterItem, RestrictedScatterItem, NearestScatterPlotItem
 
@@ -652,7 +653,8 @@ class PgPlotItem(QObject):
         cmap: pg.colormap.ColorMap | None = pg.colormap.get("viridis"),
         colorbar: bool = True,
         includeLegend: bool = False,
-        addMinimap: bool = False # TODO: default True when actually ready
+        addMinimap: bool = False, # TODO: default True when actually ready
+        validLevels: tuple[int, int] | None = None,
     ):
         """
         Plots an image from a numpy array.
@@ -680,7 +682,15 @@ class PgPlotItem(QObject):
         levels : tuple[float, float] | list | None
             Sets levels on the ImageItem (see .setLevels()).
             Defaults to None, which will automatically compute min/max value of the image,
-            same as the default for pg.ImageItem if no levels are set.
+            ignoring pixels outside validLevels when specified.
+
+        validLevels : tuple[int, int] | None
+            Inclusive range of valid data values. Pixels outside this range are
+            transparent and excluded from automatic level detection; unlike
+            levels, this does not set the color scale. Useful for integer images
+            with reserved invalid values, such as int32's maximum value. If
+            all pixels are invalid, explicit levels are required. The original
+            integer image data remains unchanged; only the rendered alpha is masked.
 
         addHalfPixelBorder : bool
             Whether to automatically add half a pixel as a border around the entire image.
@@ -710,13 +720,31 @@ class PgPlotItem(QObject):
         if includeLegend:
             self.addLegend()
 
+        # Detect levels within validLevels
+        if validLevels is not None:
+            lower, upper = validLevels
+            if lower > upper:
+                raise ValueError("validLevels lower bound must not exceed upper bound")
+            if levels is None:
+                validMask = (arr >= lower) & (arr <= upper)
+                firstValid = np.argmax(validMask)
+                if not validMask.flat[firstValid]:
+                    raise ValueError("No valid pixels for automatic levels")
+                initial = arr.flat[firstValid]
+                levels = (
+                    np.min(arr, where=validMask, initial=initial),
+                    np.max(arr, where=validMask, initial=initial),
+                )
         # Save reference to image data for this subplot
         self._imgData = arr
         if levels is None:
             # Have to manually get min/max again since setting
             # levels to None specifically disables the autoLevels
             levels = (np.nanmin(arr), np.nanmax(arr))
-        self._im = pg.ImageItem(arr, axisOrder='row-major', levels=levels) # default to row-major instead
+        if validLevels is None:
+            self._im = pg.ImageItem(arr, axisOrder='row-major', levels=levels) # default to row-major instead
+        else:
+            self._im = _ValidLevelsImageItem(arr, validLevels, axisOrder='row-major', levels=levels)
 
         pixelWidth = 1
         pixelHeight = 1

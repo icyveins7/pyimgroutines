@@ -383,7 +383,7 @@ class PgFigureBrowser(QMainWindow):
 
     def _updateMemoryLabel(self) -> None:
         current, _ = tracemalloc.get_traced_memory()
-        self._memoryLabel.setText(f"Tracked memory: {current / 2**20:.1f} MiB")
+        self._memoryLabel.setText(f"Estimated memory usage: {current / 2**20:.1f} MiB")
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
         if event.type() == QEvent.Type.Close and any(

@@ -90,7 +90,7 @@ class PgFigureBrowserTests(unittest.TestCase):
         layout = self.browser.centralWidget().layout()
         memoryLabel = layout.itemAt(2).widget()
         self.assertEqual(layout.itemAt(1).widget().text(), "Reload selected")
-        self.assertEqual(memoryLabel.text(), "Tracked memory: -- MiB")
+        self.assertEqual(memoryLabel.text(), "Estimated memory usage: -- MiB")
 
         with patch(
             "pyimgroutines.plots.browser.tracemalloc.get_traced_memory",
@@ -100,13 +100,13 @@ class PgFigureBrowserTests(unittest.TestCase):
             ],
         ) as memory:
             self.browser.selectFigure(0)
-            self.assertEqual(memoryLabel.text(), "Tracked memory: 12.0 MiB")
+            self.assertEqual(memoryLabel.text(), "Estimated memory usage: 12.0 MiB")
             self.browser.selectFigure(1)
-            self.assertEqual(memoryLabel.text(), "Tracked memory: 20.0 MiB")
+            self.assertEqual(memoryLabel.text(), "Estimated memory usage: 20.0 MiB")
             self.browser.selectFigure(0)
-            self.assertEqual(memoryLabel.text(), "Tracked memory: 20.0 MiB")
+            self.assertEqual(memoryLabel.text(), "Estimated memory usage: 20.0 MiB")
             self.browser.reloadCurrent()
-            self.assertEqual(memoryLabel.text(), "Tracked memory: 11.0 MiB")
+            self.assertEqual(memoryLabel.text(), "Estimated memory usage: 11.0 MiB")
             self.assertEqual(memory.call_count, 4)
 
     def test_memory_label_updates_after_manual_close(self):
@@ -117,10 +117,10 @@ class PgFigureBrowserTests(unittest.TestCase):
             side_effect=[(20 * 2**20, 0), (5 * 2**20, 0)],
         ):
             self.browser.selectFigure(0)
-            self.assertEqual(memoryLabel.text(), "Tracked memory: 20.0 MiB")
+            self.assertEqual(memoryLabel.text(), "Estimated memory usage: 20.0 MiB")
             self.browser.currentFigure.close()
             QApplication.processEvents()
-            self.assertEqual(memoryLabel.text(), "Tracked memory: 5.0 MiB")
+            self.assertEqual(memoryLabel.text(), "Estimated memory usage: 5.0 MiB")
 
     def test_manual_close_disposes_and_allows_reselection(self):
         self.use_multi_mode()
