@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
+import tracemalloc
 
 import pyqtgraph as pg
-from PySide6.QtCore import QByteArray, QSignalBlocker, Signal, Slot
+from PySide6.QtCore import QEvent, QObject, QSignalBlocker, QTimer, Signal, Slot
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
     QApplication,
+    QLabel,
     QListWidget,
     QMainWindow,
     QPushButton,
@@ -45,7 +47,7 @@ class PgFigureEntry:
 
 class PgFigureBrowser(QMainWindow):
     """
-    Browse lazily constructed PgFigures while keeping only one figure active.
+    Browse lazily constructed PgFigures with one selected figure at a time.
 
     The browser is a separate window containing a list of figure labels. Each
     label is associated with a zero-argument factory that may load data and
@@ -53,15 +55,17 @@ class PgFigureBrowser(QMainWindow):
     overlays, and signal connections. The factory is not called until its entry
     is selected.
 
-    The browser exclusively owns the active figure. Selecting another entry
-    immediately calls PgFigure.dispose() on the old figure before constructing
-    the new one, so inactive figures and their image data are not cached. User
-    code may deliberately retain independent arrays, but it must not retain and
-    later reuse figures or plot items managed by this browser.
+    The browser owns its figures. By default, selecting another entry disposes
+    the old figure before constructing the new one. With multiFig=True, figures
+    remain open when another entry is selected, and revisiting an entry reuses
+    its existing figure. Closing a figure disposes it and allows its entry to
+    be loaded again. User code must not reuse disposed figures or plot items.
 
     Factories run synchronously on the Qt GUI thread. This keeps the API general
     and allows factories to configure Qt widgets safely, but slow file reads
     will temporarily block interaction with the windows.
+
+    The memory label reports Python-tracked allocations, not native Qt memory.
 
     Parameters
     ----------
@@ -71,6 +75,8 @@ class PgFigureBrowser(QMainWindow):
         Browser window title.
     parent : QWidget | None
         Optional Qt parent for the browser window.
+    multiFig : bool
+        Whether figures from multiple entries may remain open simultaneously.
     """
 
     # Notify callers when a new figure becomes active or the active figure is removed.
@@ -84,23 +90,23 @@ class PgFigureBrowser(QMainWindow):
         entries: Iterable[PgFigureEntry] | None = None,
         title: str = "PgFigure Browser",
         parent: QWidget | None = None,
+        multiFig: bool = False,
     ) -> None:
         """Create an empty browser window and optionally populate its figure list."""
         # A QApplication must exist before any browser widgets are constructed.
         pg.mkQApp()
         super().__init__(parent)
         self.setWindowTitle(title)
+        if not tracemalloc.is_tracing():
+            tracemalloc.start()
 
         # Entries retain only labels and factories, never constructed figures.
         self._entries: list[PgFigureEntry] = []
 
-        # The browser keeps the sole library-owned reference to the active figure.
-        self._currentFigure: PgFigure | None = None
+        # The browser keeps the sole library-owned references to its open figures.
+        self._multiFig = multiFig
+        self._openFigures: dict[int, PgFigure] = {}
         self._currentIndex: int | None = None
-
-        # Preserve the top-level figure's placement when replacing it.
-        self._figureGeometry: QByteArray | None = None
-        self._figureWasMaximized = False
 
         # The list drives lazy loading whenever the user changes its current row.
         self._listWidget = QListWidget(self)
@@ -109,12 +115,14 @@ class PgFigureBrowser(QMainWindow):
         # An explicit reload button also lets a failed or unchanged entry be retried.
         self._reloadButton = QPushButton("Reload selected", self)
         self._reloadButton.clicked.connect(self.reloadCurrent)
+        self._memoryLabel = QLabel("Estimated memory usage: -- MiB", self)
 
-        # Keep the browser UI deliberately small: a list followed by one action.
+        # Keep the browser UI deliberately small: a list, an action, and a readout.
         centralWidget = QWidget(self)
         layout = QVBoxLayout(centralWidget)
         layout.addWidget(self._listWidget)
         layout.addWidget(self._reloadButton)
+        layout.addWidget(self._memoryLabel)
         self.setCentralWidget(centralWidget)
         self.statusBar().showMessage("Select a figure")
 
@@ -136,7 +144,7 @@ class PgFigureBrowser(QMainWindow):
     @property
     def currentFigure(self) -> PgFigure | None:
         """Return the active figure, or None when no figure is active."""
-        return self._currentFigure
+        return self._openFigures.get(self._currentIndex) if self._currentIndex is not None else None
 
     @property
     def currentIndex(self) -> int | None:
@@ -171,7 +179,7 @@ class PgFigureBrowser(QMainWindow):
 
     def removeFigure(self, index: int) -> None:
         """
-        Remove one entry and dispose its figure if it is currently active.
+        Remove one entry and dispose its figure if it is open.
 
         Parameters
         ----------
@@ -184,9 +192,9 @@ class PgFigureBrowser(QMainWindow):
         blocker = QSignalBlocker(self._listWidget)
         selectedIndex = self._listWidget.currentRow()
 
-        # Removing the active entry also removes its live figure immediately.
-        if index == self._currentIndex:
-            self._disposeCurrentFigure()
+        # Removing an entry also removes its live figure immediately.
+        self._disposeFigure(index)
+        if selectedIndex == index:
             self._currentIndex = None
             selectedIndex = -1
         elif self._currentIndex is not None and index < self._currentIndex:
@@ -194,6 +202,9 @@ class PgFigureBrowser(QMainWindow):
             self._currentIndex -= 1
 
         # Remove matching entries from the Python model and visible Qt list.
+        self._openFigures = {
+            row - (row > index): figure for row, figure in self._openFigures.items()
+        }
         self._entries.pop(index)
         removedItem = self._listWidget.takeItem(index)
         del removedItem
@@ -205,10 +216,11 @@ class PgFigureBrowser(QMainWindow):
         del blocker
 
     def clearFigures(self) -> None:
-        """Dispose the active figure and remove every registered entry."""
+        """Dispose all open figures and remove every registered entry."""
         # Prevent clear() from invoking the row-change handler during teardown.
         blocker = QSignalBlocker(self._listWidget)
-        self._disposeCurrentFigure()
+        for index in tuple(self._openFigures):
+            self._disposeFigure(index)
         self._currentIndex = None
         self._entries.clear()
         self._listWidget.clear()
@@ -234,7 +246,7 @@ class PgFigureBrowser(QMainWindow):
             return
 
         # A row already selected without an active figure may follow a failed load.
-        if self._currentFigure is None:
+        if self.currentFigure is None:
             self._loadFigure(index, force=True)
 
     @Slot()
@@ -259,14 +271,18 @@ class PgFigureBrowser(QMainWindow):
         """
         # Clearing the selection means that no figure should remain active.
         if index < 0:
-            self._disposeCurrentFigure()
+            currentFigure = self.currentFigure
+            if not self._multiFig and self._currentIndex is not None:
+                self._disposeFigure(self._currentIndex)
             self._currentIndex = None
+            if self._multiFig and currentFigure is not None:
+                self.sigCurrentFigureChanged.emit(None)
             return
         self._loadFigure(index)
 
     def _loadFigure(self, index: int, force: bool = False) -> None:
         """
-        Dispose the old figure and invoke one entry's factory.
+        Reuse an open figure or invoke an entry's factory.
 
         Parameters
         ----------
@@ -277,11 +293,20 @@ class PgFigureBrowser(QMainWindow):
         """
         self._validateIndex(index)
 
-        # A normal repeated selection keeps the existing figure; reload uses force.
-        if not force and index == self._currentIndex and self._currentFigure is not None:
-            return
-
         entry = self._entries[index]
+        existingFigure = self._openFigures.get(index)
+
+        # A normal repeated selection keeps the existing figure; reload uses force.
+        if not force and existingFigure is not None:
+            changed = self._currentIndex != index
+            self._currentIndex = index
+            existingFigure.show()
+            existingFigure.raise_()
+            existingFigure.activateWindow()
+            self.statusBar().showMessage(entry.label)
+            if changed:
+                self.sigCurrentFigureChanged.emit(existingFigure)
+            return
 
         # Disable controls while processEvents paints the loading status message.
         self._listWidget.setEnabled(False)
@@ -291,9 +316,15 @@ class PgFigureBrowser(QMainWindow):
 
         # Keep a local handle so a figure can be disposed if setup fails after creation.
         figure: PgFigure | None = None
+        previousFigure = self.currentFigure
         try:
-            # Dispose first so old and new figure data are never resident together.
-            self._disposeCurrentFigure()
+            # Dispose replaced figures before invoking the factory.
+            if self._multiFig:
+                if force:
+                    self._disposeFigure(index)
+            else:
+                for openIndex in tuple(self._openFigures):
+                    self._disposeFigure(openIndex)
             self._currentIndex = None
 
             # The factory owns all loading and complete PgFigure configuration.
@@ -305,26 +336,27 @@ class PgFigureBrowser(QMainWindow):
                 )
             figure = factoryResult
 
-            # Restore the previous figure's screen placement before showing the new one.
-            if self._figureGeometry is not None:
-                figure.restoreGeometry(self._figureGeometry)
-
-            self._currentFigure = figure
+            self._openFigures[index] = figure
+            figure.installEventFilter(self)
             self._currentIndex = index
-            if self._figureWasMaximized:
-                figure.showMaximized()
-            else:
-                figure.show()
+            figure.show()
+            self._updateMemoryLabel()
 
             # Publish the newly active figure only after it has been fully configured.
             self.statusBar().showMessage(entry.label)
             self.sigCurrentFigureChanged.emit(figure)
         except Exception as error:
             # A figure created before a later setup failure must not remain resident.
+            wasCurrent = self._currentIndex == index
             if figure is not None:
-                self._currentFigure = None
-                self._currentIndex = None
-                figure.dispose()
+                if self._openFigures.get(index) is figure:
+                    self._disposeFigure(index)
+                else:
+                    figure.dispose()
+            if self._multiFig and not wasCurrent and any(
+                openFigure is previousFigure for openFigure in self._openFigures.values()
+            ):
+                self.sigCurrentFigureChanged.emit(None)
 
             # Keep the browser usable and expose failures through status and a signal.
             self.statusBar().showMessage(f"Failed to load {entry.label}: {error}")
@@ -334,21 +366,41 @@ class PgFigureBrowser(QMainWindow):
             self._listWidget.setEnabled(True)
             self._reloadButton.setEnabled(True)
 
-    def _disposeCurrentFigure(self) -> None:
-        """Save and immediately dispose the active figure, if one exists."""
-        figure = self._currentFigure
+    def _disposeFigure(self, index: int) -> None:
+        """Immediately dispose an open figure, if one exists for the entry."""
+        figure = self._openFigures.pop(index, None)
         if figure is None:
             return
 
-        # Save window placement before dispose() invalidates the Qt wrapper.
-        self._figureGeometry = figure.saveGeometry()
-        self._figureWasMaximized = figure.isMaximized()
-
         # Drop browser ownership before performing the irreversible disposal.
-        self._currentFigure = None
+        wasCurrent = self._currentIndex == index
+        if wasCurrent:
+            self._currentIndex = None
         figure.dispose()
-        del figure
-        self.sigCurrentFigureChanged.emit(None)
+        self._updateMemoryLabel()
+        if wasCurrent:
+            self.sigCurrentFigureChanged.emit(None)
+
+    def _updateMemoryLabel(self) -> None:
+        current, _ = tracemalloc.get_traced_memory()
+        self._memoryLabel.setText(f"Tracked memory: {current / 2**20:.1f} MiB")
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if event.type() == QEvent.Type.Close and any(
+            figure is watched for figure in self._openFigures.values()
+        ):
+            QTimer.singleShot(0, lambda: self._onFigureClosed(watched))
+        return super().eventFilter(watched, event)
+
+    def _onFigureClosed(self, figure: QObject) -> None:
+        for index, openFigure in tuple(self._openFigures.items()):
+            if openFigure is figure:
+                wasSelected = self._listWidget.currentRow() == index
+                self._disposeFigure(index)
+                if wasSelected:
+                    self._listWidget.setCurrentRow(-1)
+                    self.statusBar().showMessage("Select a figure")
+                return
 
     def _validateIndex(self, index: int) -> None:
         """
@@ -367,13 +419,14 @@ class PgFigureBrowser(QMainWindow):
 
     def closeEvent(self, event: QCloseEvent) -> None:
         """
-        Dispose the active figure when the browser window closes.
+        Dispose all open figures when the browser window closes.
 
         Parameters
         ----------
         event : QCloseEvent
             Qt close event delivered to the browser.
         """
-        # The browser owns the active figure, so both windows share a lifetime.
-        self._disposeCurrentFigure()
+        # The browser owns its open figures, so both windows share a lifetime.
+        for index in tuple(self._openFigures):
+            self._disposeFigure(index)
         super().closeEvent(event)

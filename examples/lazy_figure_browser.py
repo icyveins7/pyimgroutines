@@ -3,10 +3,11 @@ Demonstrate lazy PgFigure construction with PgFigureBrowser.
 
 Each browser entry stores only small configuration values. Selecting an entry
 waits to simulate a file read, creates its image array, and returns a completely
-configured PgFigure. Selecting another entry disposes the old figure and its
-array before loading the replacement.
+configured PgFigure. By default, selecting another entry disposes the old
+figure; --multi-fig keeps previously selected figures open.
 """
 
+import argparse
 from functools import partial
 import time
 
@@ -59,7 +60,10 @@ def load_image_figure(
 
 
 # Factories capture only lightweight tags and loading parameters, not image arrays.
-browser = PgFigureBrowser(title="Lazy image browser")
+parser = argparse.ArgumentParser(description="Browse lazily loaded PgFigures.")
+parser.add_argument("--multi-fig", action="store_true", help="Keep previously selected figures open.")
+args = parser.parse_args()
+browser = PgFigureBrowser(title="Lazy image browser", multiFig=args.multi_fig)
 browser.addFigure(
     "reference/0001",
     partial(load_image_figure, "reference/0001", 1, "viridis"),
