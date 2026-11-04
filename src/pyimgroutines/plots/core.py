@@ -67,6 +67,7 @@ class PgPlotItem(QObject):
         self._parent = parent
         # Extras
         self._cursorMode = self.CURSOR_SHOW_POS
+        self._cursorValueFormatter: Callable[[int, int, Any], str] | None = None
         self._im = None
         # NOTE: where the cursor actually is, not necessarily where the label is
         self._cursorPos = np.array([np.nan, np.nan], dtype=self.trackingDtype)
@@ -1056,6 +1057,23 @@ class PgPlotItem(QObject):
         # TODO: by itself this doesn't really work too well since it's hard to differentiate
         # against the original image with transparency on
 
+    def setCursorValueFormatter(
+        self, formatter: Callable[[int, int, Any], str] | None
+    ) -> None:
+        """
+        Set the text formatter for the V hotkey's pixel-value cursor mode.
+
+        Called as ``formatter(row, col, value)`` for an in-bounds image pixel,
+        with the original array value. Return the complete cursor text.
+        Passing None restores the default ``[row, col]: value`` text.
+        Position and hidden cursor modes are unaffected.
+        """
+        if formatter is not None and not callable(formatter):
+            raise TypeError("formatter must be callable or None")
+        self._cursorValueFormatter = formatter
+        if self._cursorMode == self.CURSOR_SHOW_VALUE:
+            self._setMouseLabelTextAndPos()
+
     def _rotateCursorMode(self):
         if self._im is None:
             # Plots without images only support position and hidden-label modes.
@@ -1320,7 +1338,14 @@ class PgPlotItem(QObject):
                 if index is None:
                     self._replaceMouseLabelText(f"OOB") # pyright: ignore
                 else:
-                    self._replaceMouseLabelText(f"[{int(index[1])}, {int(index[0])}]: {self._imgData[int(index[1]), int(index[0])]}") # pyright: ignore
+                    row, col = int(index[1]), int(index[0])
+                    value = self._imgData[row, col] # pyright: ignore
+                    text = (
+                        f"[{row}, {col}]: {value}"
+                        if self._cursorValueFormatter is None
+                        else self._cursorValueFormatter(row, col, value)
+                    )
+                    self._replaceMouseLabelText(text)
             else:
                 self._replaceMouseLabelText("")
         else:
