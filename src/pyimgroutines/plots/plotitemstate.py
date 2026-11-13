@@ -1,13 +1,12 @@
 """Copy and restore a single subplot's state using a shareable code.
 
-Version 1 uses a big-endian 32-bit unsigned integer followed by four big-endian
-doubles (``!I4d``): version, xmin, xmax, ymin, ymax. The bytes are URL-safe
-Base64 encoded. Both users must use the same state format version: this v1
-reader accepts only v1 codes. Unversioned and other-version codes are rejected.
-
-When changing the captured state, increment the format version, update plot
-capture and application, and record the version in which each new field was
-added in the class docstring. No cross-version decoding is required.
+Version 1 uses ``!I4d``: version, xmin, xmax, ymin, ymax. Version 2 keeps
+that required prefix and adds optional fields by code. Code 1 contains ``!2d``
+colorbar levels directly after its one-byte code; other codes use ``!H``
+byte length followed by their payload, allowing unknown codes to be skipped.
+Fixed-size codes must remain recognizable even if retired, and field codes
+must not be reused. The bytes are URL-safe Base64. Version 1 codes remain
+readable, without optional fields.
 """
 
 from __future__ import annotations
@@ -35,45 +34,64 @@ class PgPlotItemState:
     Currently captured:
     - xlims (added in v1): (minimum, maximum) x-axis limits
     - ylims (added in v1): (minimum, maximum) y-axis limits
+    - colorbar_levels (added in v2): optional (minimum, maximum) colorbar levels
     """
 
+    _COLORBAR_LEVELS_CODE = 1
+
     # State fields appear in the same order as their serialized values.
-    version: int = field(default=1, init=False)
+    version: int = field(default=2, init=False)
     xlims: tuple[float, float]
     ylims: tuple[float, float]
+    colorbar_levels: tuple[float, float] | None = None
 
     def __post_init__(self):
         """Reject unsupported formats and limits that cannot describe a viewport."""
-        if self.version != 1:
+        if self.version != 2:
             raise ValueError(f"Unsupported viewport state version: {self.version}.")
         if (len(self.xlims) != 2 or len(self.ylims) != 2
                 or not all(isfinite(value) for value in (*self.xlims, *self.ylims))
                 or self.xlims[0] >= self.xlims[1]
                 or self.ylims[0] >= self.ylims[1]):
             raise ValueError("Viewport limits must be finite, increasing pairs.")
+        if (self.colorbar_levels is not None
+                and (len(self.colorbar_levels) != 2
+                     or not all(isfinite(value) for value in self.colorbar_levels)
+                     or self.colorbar_levels[0] > self.colorbar_levels[1])):
+            raise ValueError("Colorbar levels must be finite, ordered pairs.")
 
     @classmethod
     def from_plot_item(cls, plot: PgPlotItem) -> PgPlotItemState:
-        """Capture the axis limits currently visible in ``plot``."""
+        """Capture the visible axis limits and colorbar levels in ``plot``."""
         xlims, ylims = plot.viewRange()
-        return cls(tuple(xlims), tuple(ylims))
+        levels = tuple(plot.cbar.levels()) if plot.cbar.scene() is not None else None
+        return cls(tuple(xlims), tuple(ylims), levels)
 
     def apply_to_plot_item(self, plot: PgPlotItem) -> None:
-        """Set ``plot`` to these limits without adding range padding.
+        """Set ``plot`` to these limits and optional colorbar levels.
 
-        Pyqtgraph may still adjust the result for linked axes or a locked
-        aspect ratio.
+        Axis limits are applied without padding. Pyqtgraph may still adjust
+        them for linked axes or a locked aspect ratio.
         """
         plot.setRange(xRange=self.xlims, yRange=self.ylims, padding=0)
+        if self.colorbar_levels is not None and plot.cbar.scene() is not None:
+            plot.cbar.setLevels(self.colorbar_levels)
 
     def to_base64(self) -> str:
-        """Encode the version and four limits as copyable, URL-safe Base64."""
+        """Encode the required viewport and optional fields as URL-safe Base64."""
+        # Viewport: version (4) + xmin/xmax/ymin/ymax (4 * 8) = 36 bytes.
+        # Alone, these encode to 48 Base64 characters (48 ASCII bytes).
         data = struct.pack("!I4d", self.version, *self.xlims, *self.ylims)
+        if self.colorbar_levels is not None:
+            # Colorbar: code (1) + low/high (2 * 8) = 17 bytes.
+            # After the 36-byte viewport: 53 bytes total -> 72 Base64 characters
+            # (72 ASCII bytes), 24 more than the viewport-only code.
+            data += struct.pack("!B2d", self._COLORBAR_LEVELS_CODE, *self.colorbar_levels)
         return base64.urlsafe_b64encode(data).decode("ascii")
 
     @classmethod
     def from_base64(cls, text: str) -> PgPlotItemState:
-        """Decode a v1 code; reject other versions and unusable limits."""
+        """Decode v1 or v2 codes, skipping unrecognized optional fields."""
         try:
             data = base64.b64decode(text.strip(), altchars=b"-_", validate=True)
         except (ValueError, binascii.Error) as exc:
@@ -83,12 +101,38 @@ class PgPlotItemState:
         if len(data) < struct.calcsize("!I"):
             raise ValueError("Viewport state must start with a 32-bit version.")
         (version,) = struct.unpack_from("!I", data)
-        if version != 1:
-            raise ValueError(f"Viewport state version {version} does not match version 1.")
-        if len(data) != struct.calcsize("!I4d"):
+        if version not in (1, 2):
+            raise ValueError(f"Unsupported viewport state version: {version}.")
+        header_size = struct.calcsize("!I4d")
+        if len(data) < header_size:
+            raise ValueError("Viewport state must contain four double-precision bounds.")
+        if version == 1 and len(data) != header_size:
             raise ValueError("Version 1 viewport state must contain four double-precision numbers.")
-        _, xmin, xmax, ymin, ymax = struct.unpack("!I4d", data)
-        return cls((xmin, xmax), (ymin, ymax))
+        # Viewport: version (4) + xmin/xmax/ymin/ymax (4 * 8) = 36 bytes.
+        # A viewport-only code is 48 Base64 characters (48 ASCII bytes).
+        _, xmin, xmax, ymin, ymax = struct.unpack_from("!I4d", data)
+        colorbar_levels = None
+        offset = header_size
+        while offset < len(data):
+            code = data[offset]
+            offset += 1
+            if code == cls._COLORBAR_LEVELS_CODE:
+                # Colorbar: code (1) + low/high (2 * 8) = 17 bytes.
+                # Directly after the viewport, 53 bytes total encode to
+                # 72 Base64 characters (72 ASCII bytes), 24 extra.
+                if colorbar_levels is not None or len(data) - offset < struct.calcsize("!2d"):
+                    raise ValueError("Invalid colorbar levels field.")
+                colorbar_levels = struct.unpack_from("!2d", data, offset)
+                offset += struct.calcsize("!2d")
+            else:
+                if len(data) - offset < struct.calcsize("!H"):
+                    raise ValueError("Incomplete viewport state field header.")
+                (length,) = struct.unpack_from("!H", data, offset)
+                offset += struct.calcsize("!H")
+                if length > len(data) - offset:
+                    raise ValueError("Incomplete viewport state field payload.")
+                offset += length
+        return cls((xmin, xmax), (ymin, ymax), colorbar_levels)
 
 
 class ViewportStateDialog(QDialog):
